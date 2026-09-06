@@ -2,24 +2,9 @@
 
 `SIRI Consumer` is a self-contained Python 3.12+ service for running and supervising SIRI subscriptions inside a single Docker container. It exposes a REST control API, receives SIRI traffic, restores subscriptions after restarts, durably buffers incoming payloads, and forwards the original payload bytes to pluggable downstream sinks without requiring an external database or queue.
 
-## P
-
-- REST API for creating, listing, restarting, and terminating SIRI subscriptions.
-- Direct Delivery and Fetched Delivery handling.
-- Incoming heartbeat handling plus optional active publisher status checks.
-- Publisher restart detection using `ServiceStartedTime` when available.
-- Deterministic subscription recovery: terminate first, then recreate from persisted configuration.
-- Optional line and operator filters, `ConsumerAddress`, and minimum update interval support where accepted by the selected SIRI service/provider.
-- SQLite-backed local subscription state.
-- Durable local spool with a maximum of 100 pending messages per subscription by default.
-- O(1) oldest-message eviction through an in-memory per-subscription deque; the spool filesystem is scanned only during startup reconstruction.
-- Directory, HTTP, S3, and MQTT sinks.
-- Preservation of the original inbound payload bytes without XML re-serialization.
-- OpenAPI documentation and Swagger UI built into the same service.
-
 ## HTTP Endpoints and Port
 
-The control API and the inbound SIRI endpoint are served by the **same FastAPI application and the same port**. The default container port is `8080`.
+The control API and the inbound SIRI endpoint are served by the **same FastAPI application and the same TCP port**. The default container port is `8080`.
 
 ## Start with Docker
 
@@ -79,8 +64,6 @@ The project uses `setuptools_scm`. Package versions are derived from Git metadat
 src/siriconsumer/version.py
 ```
 
-The generated `__version__` is also used as the FastAPI/OpenAPI application version.
-
 ## Example Subscription
 
 ```json
@@ -101,7 +84,9 @@ The generated `__version__` is also used as the FastAPI/OpenAPI application vers
   },
   "heartbeat": {
     "enabled": true,
-    "timeout_seconds": 180
+    "interval": "PT1M",
+    "timeout_seconds": 180,
+    "check_status_enabled": false
   },
   "sink": {
     "type": "directory",

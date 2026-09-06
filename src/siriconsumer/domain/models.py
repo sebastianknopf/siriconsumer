@@ -28,8 +28,16 @@ class SubscriptionPolicy(BaseModel):
 
 class HeartbeatConfig(BaseModel):
     enabled: bool = True
+    interval: str = Field(
+        default="PT1M",
+        min_length=1,
+        description=(
+            "Requested ISO-8601 heartbeat interval sent as "
+            "SubscriptionContext/HeartbeatInterval."
+        ),
+    )
     timeout_seconds: int = Field(default=180, ge=1)
-    active_check_enabled: bool = True
+    check_status_enabled: bool = True
 
 
 class DirectorySinkConfig(BaseModel):
@@ -81,6 +89,7 @@ class SubscriptionCreate(BaseModel):
     subscription_ref: str
     consumer_address: AnyHttpUrl | None = None
     initial_termination_time: datetime | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
     filters: SubscriptionFilters = Field(default_factory=SubscriptionFilters)
     subscription_policy: SubscriptionPolicy = Field(default_factory=SubscriptionPolicy)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)

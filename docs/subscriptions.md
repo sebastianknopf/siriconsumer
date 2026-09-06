@@ -46,3 +46,23 @@ The public model supports optional `lines` and `operators` lists from the start.
 ## Update Interval
 
 `subscription_policy.update_interval` accepts an ISO-8601 duration such as `PT30S`. It represents the requested minimum interval between publisher updates where the selected SIRI service and publisher support such a field. It is not a local rate limiter and cannot force a non-compliant publisher to wait.
+
+
+## Publisher Request Headers
+
+`headers` accepts arbitrary HTTP headers for a subscription. Every outbound request to that SIRI publisher for the subscription, including subscribe, terminate, active `CheckStatus`, and fetched `DataSupplyRequest` calls, includes those headers. Header names and values are persisted with the subscription configuration and reused during recovery. A configured `Content-Type` header overrides the default `application/xml` value.
+
+
+## Heartbeats and Active Status Checks
+
+Heartbeat behavior is configured per subscription under `heartbeat`. When `enabled` is `true`,
+the subscription request includes `SubscriptionContext/HeartbeatInterval` using the configured
+ISO-8601 `interval` value. This asks the SIRI publisher to send `HeartbeatNotification` messages
+to the consumer. SIRI does not define a consumer-to-publisher `HeartbeatRequest`; heartbeat
+notifications flow from publisher to consumer.
+
+`check_status_enabled` independently controls whether the consumer sends active
+`CheckStatusRequest` messages for that subscription. Set it to `false` when publisher heartbeats
+should be used without active status polling. `timeout_seconds` controls how long an enabled
+heartbeat may be absent before publisher recovery is triggered after at least one heartbeat has
+been observed.

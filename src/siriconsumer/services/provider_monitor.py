@@ -34,7 +34,7 @@ class ProviderMonitor:
     async def stop(self) -> None:
         if self._task is None:
             return
-
+        
         self._task.cancel()
         await asyncio.gather(self._task, return_exceptions=True)
 
@@ -87,34 +87,37 @@ class ProviderMonitor:
 
             providers.setdefault(str(record.config.provider_url), []).append(record)
 
+
         for provider_url, records in providers.items():
-            representative = records[0]
-            if not representative.config.heartbeat.active_check_enabled:
-                await self._check_heartbeat_timeouts(records)
-                continue
-
-            try:
-                status = await self._siri_client.check_status(
-                    provider_url, representative.config.requestor_ref
-                )
-            except Exception:
-                logger.warning("Active publisher status check failed provider=%s", provider_url, exc_info=True)
-                await self._check_heartbeat_timeouts(records)
-                continue
-
             restart_detected = False
             for record in records:
+                if not record.config.heartbeat.check_status_enabled:
+                    continue
+                try:
+                    status = await self._siri_client.check_status(record)
+                except Exception:
+                    logger.warning(
+                        "Active publisher status check failed provider=%s subscription_id=%s",
+                        provider_url,
+                        record.id,
+                        exc_info=True,
+                    )
+                    continue
+
                 if status.service_started_time is not None:
                     if (
                         record.last_service_started_time is not None
                         and record.last_service_started_time != status.service_started_time
                     ):
                         restart_detected = True
-
                     record.last_service_started_time = status.service_started_time
                     await self._repository.save(record)
+
             if restart_detected:
                 await self._recover_provider_once(provider_url)
+                continue
+
+            await self._check_heartbeat_timeouts(records)
 
     async def _check_heartbeat_timeouts(self, records: list) -> None:
         now = datetime.now(timezone.utc)
