@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import logging
+
 import httpx
 from lxml import etree
 
@@ -9,6 +11,9 @@ from siriconsumer.domain.enums import DeliveryMode
 from siriconsumer.domain.models import SubscriptionRecord
 from siriconsumer.infrastructure.xml_codec import SIRI_NS, first_datetime, first_text, parse_xml, xml_bytes
 from siriconsumer.interfaces.intf_siri_client import ProviderStatus
+from siriconsumer.siri_debug import log_siri_payload
+
+logger = logging.getLogger(__name__)
 
 NSMAP = {None: SIRI_NS}
 
@@ -23,8 +28,11 @@ SERVICE_ELEMENTS: dict[str, tuple[str, str]] = {
 }
 
 class SiriHttpClient:
-    def __init__(self, timeout_seconds: float = 20.0) -> None:
+    def __init__(
+        self, timeout_seconds: float = 20.0, *, debug_siri_logging: bool = False
+    ) -> None:
         self._client = httpx.AsyncClient(timeout=timeout_seconds)
+        self._debug_siri_logging = debug_siri_logging
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -59,9 +67,7 @@ class SiriHttpClient:
     async def fetch_delivery(self, subscription: SubscriptionRecord) -> bytes:
         payload = self._build_data_supply_request(subscription)
         response = await self._post(subscription, payload)
-
         response.raise_for_status()
-
         return response.content
 
 
@@ -71,14 +77,27 @@ class SiriHttpClient:
             for existing_name in list(headers):
                 if existing_name.lower() == name.lower():
                     del headers[existing_name]
-
             headers[name] = value
 
-        return await self._client.post(
-            str(subscription.config.provider_url),
-            content=payload,
-            headers=headers,
+        endpoint = str(subscription.config.provider_url)
+        log_siri_payload(
+            logger,
+            enabled=self._debug_siri_logging,
+            direction="OUTGOING REQUEST",
+            payload=payload,
+            endpoint=endpoint,
         )
+
+        response = await self._client.post(endpoint, content=payload, headers=headers)
+        log_siri_payload(
+            logger,
+            enabled=self._debug_siri_logging,
+            direction=f"INCOMING RESPONSE status={response.status_code}",
+            payload=response.content,
+            endpoint=endpoint,
+        )
+        
+        return response
 
     @staticmethod
     def _timestamp() -> str:
@@ -110,7 +129,6 @@ class SiriHttpClient:
 
         service_request = etree.SubElement(request, f"{{{SIRI_NS}}}{subscription_element}")
         filter_request = etree.SubElement(service_request, f"{{{SIRI_NS}}}{request_element}")
-
         for line in config.filters.lines:
             etree.SubElement(filter_request, f"{{{SIRI_NS}}}LineRef").text = line
         for operator in config.filters.operators:
