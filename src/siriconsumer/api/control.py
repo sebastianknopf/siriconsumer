@@ -33,7 +33,6 @@ async def get_subscription(subscription_ref: str, request: Request) -> Subscript
     record = await _services(request).repository.get(subscription_ref)
     if record is None:
         raise HTTPException(status_code=404, detail="Subscription not found")
-
     return record
 
 
@@ -47,10 +46,10 @@ async def restart_subscription(subscription_ref: str, request: Request) -> Subsc
         raise HTTPException(status_code=502, detail=f"Subscription recovery failed: {exc}") from exc
 
 
-@router.delete("/{subscription_ref}", response_model=SubscriptionRecord)
-async def delete_subscription(subscription_ref: str, request: Request) -> SubscriptionRecord:
+@router.delete("/{subscription_ref}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_subscription(subscription_ref: str, request: Request) -> None:
     try:
-        return await _services(request).subscription_manager.terminate(subscription_ref)
+        await _services(request).subscription_manager.terminate(subscription_ref)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Subscription not found") from exc
     except Exception as exc:

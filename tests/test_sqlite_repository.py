@@ -73,3 +73,19 @@ async def test_subscription_ref_is_unique_in_sqlite(tmp_path) -> None:
 
     with pytest.raises(SubscriptionAlreadyExistsError, match="same-ref"):
         await repository.create(_mqtt_config("same-ref"))
+
+
+@pytest.mark.asyncio
+async def test_delete_removes_subscription_and_allows_ref_reuse(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+
+    await repository.create(_mqtt_config("reusable-ref"))
+    await repository.delete("reusable-ref")
+
+    assert await repository.get("reusable-ref") is None
+    assert await repository.list_all() == []
+
+    recreated = await repository.create(_mqtt_config("reusable-ref"))
+    assert recreated.config.subscription_ref == "reusable-ref"

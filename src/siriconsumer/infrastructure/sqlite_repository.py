@@ -72,10 +72,7 @@ class SqliteSubscriptionRepository:
         return await self._query("SELECT * FROM subscriptions ORDER BY created_at")
 
     async def list_recoverable(self) -> list[SubscriptionRecord]:
-        return await self._query(
-            "SELECT * FROM subscriptions WHERE status != ? ORDER BY created_at",
-            (SubscriptionStatus.TERMINATED.value,),
-        )
+        return await self.list_all()
 
     async def list_by_provider(self, provider_url: str) -> list[SubscriptionRecord]:
         records = await self.list_all()
@@ -109,6 +106,17 @@ class SqliteSubscriptionRepository:
             )
             if cursor.rowcount != 1:
                 raise KeyError(record.config.subscription_ref)
+            await db.commit()
+
+    async def delete(self, subscription_ref: str) -> None:
+        async with aiosqlite.connect(self._database_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM subscriptions WHERE subscription_ref = ?",
+                (subscription_ref,),
+            )
+
+            if cursor.rowcount != 1:
+                raise KeyError(subscription_ref)
 
             await db.commit()
 

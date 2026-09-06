@@ -11,7 +11,6 @@ class SubscriptionStatus(StrEnum):
     ACTIVE = "active"
     DEGRADED = "degraded"
     TERMINATING = "terminating"
-    TERMINATED = "terminated"
     FAILED = "failed"
 
 

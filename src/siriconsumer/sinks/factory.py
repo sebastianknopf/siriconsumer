@@ -38,11 +38,19 @@ class DefaultSinkFactory:
             raise ValueError(f"Unsupported sink configuration: {config.type}")
 
         self._instances[subscription_ref] = sink
-
         return sink
+
+    async def remove(self, subscription_ref: str) -> None:
+        sink = self._instances.get(subscription_ref)
+        if sink is None:
+            return
+
+        try:
+            await sink.close()
+        finally:
+            self._instances.pop(subscription_ref, None)
 
     async def close(self) -> None:
         for sink in self._instances.values():
             await sink.close()
-
         self._instances.clear()

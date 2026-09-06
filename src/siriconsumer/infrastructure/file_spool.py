@@ -107,6 +107,28 @@ class FileDurableSpool:
 
             self._schedule_head(subscription_ref)
 
+    async def purge(self, subscription_ref: str) -> int:
+        """Remove every queued or in-flight spool entry for a subscription.
+
+        An already executing sink write cannot be undone, but the entry is removed
+        from the active index so it can never be requeued or delivered again.
+        """
+        async with self._lock:
+            queue = self._index.pop(subscription_ref, deque())
+            entries = list(queue)
+
+            self._scheduled_subscriptions.discard(subscription_ref)
+            self._inflight_subscriptions.discard(subscription_ref)
+
+            for entry in entries:
+                self._active_ids.discard(entry.metadata.message_id)
+                self._inflight_ids.discard(entry.metadata.message_id)
+
+            for entry in entries:
+                await asyncio.to_thread(self._delete_files, entry)
+
+            return len(entries)
+
     async def next_pending(self) -> SpoolEntry:
         while True:
             entry = await self._ready.get()
@@ -131,10 +153,8 @@ class FileDurableSpool:
     async def requeue(self, entry: SpoolEntry) -> None:
         async with self._lock:
             subscription_ref = entry.metadata.subscription_ref
-
             self._inflight_ids.discard(entry.metadata.message_id)
             self._inflight_subscriptions.discard(subscription_ref)
-
             if entry.metadata.message_id in self._active_ids:
                 self._schedule_head(subscription_ref)
 
@@ -148,7 +168,6 @@ class FileDurableSpool:
             return
         if subscription_ref in self._scheduled_subscriptions:
             return
-
         queue = self._index.get(subscription_ref)
         if not queue:
             return

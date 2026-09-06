@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 
     sink_factory = DefaultSinkFactory()
 
-    subscription_manager = SubscriptionManager(repository, siri_client)
+    subscription_manager = SubscriptionManager(repository, siri_client, spool, sink_factory)
 
     delivery_service = DeliveryService(repository, spool)
     fetched_delivery_service = FetchedDeliveryService(repository, siri_client, delivery_service)

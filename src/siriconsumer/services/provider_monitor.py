@@ -5,7 +5,6 @@ import logging
 from datetime import datetime, timezone
 
 from siriconsumer.config import Settings
-from siriconsumer.domain.enums import SubscriptionStatus
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 from siriconsumer.services.subscription_manager import SubscriptionManager
@@ -82,9 +81,6 @@ class ProviderMonitor:
         subscriptions = await self._repository.list_all()
         providers: dict[str, list] = {}
         for record in subscriptions:
-            if record.status is SubscriptionStatus.TERMINATED:
-                continue
-
             providers.setdefault(str(record.config.provider_url), []).append(record)
 
 

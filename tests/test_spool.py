@@ -73,3 +73,35 @@ async def test_spool_allows_different_subscriptions_in_parallel(tmp_path) -> Non
         "sub-1",
         "sub-2",
     }
+
+
+@pytest.mark.asyncio
+async def test_spool_purge_removes_all_messages_for_subscription(tmp_path) -> None:
+    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=100)
+    await spool.initialize()
+
+    first = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"first")
+    second = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"second")
+    other = await spool.put(SpoolMetadata(subscription_ref="sub-2"), b"other")
+
+    claimed = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+    if claimed.metadata.subscription_ref == "sub-2":
+        await spool.requeue(claimed)
+        claimed = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+
+    assert claimed.metadata.subscription_ref == "sub-1"
+
+    purged = await spool.purge("sub-1")
+
+    assert purged == 2
+    assert spool.pending_count("sub-1") == 0
+    assert not first.payload_path.exists()
+    assert not first.metadata_path.exists()
+    assert not second.payload_path.exists()
+    assert not second.metadata_path.exists()
+    assert other.payload_path.exists()
+
+    # An in-flight entry that was purged must not come back on retry.
+    await spool.requeue(claimed)
+    next_entry = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+    assert next_entry.metadata.subscription_ref == "sub-2"

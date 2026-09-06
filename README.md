@@ -101,7 +101,7 @@ src/siriconsumer/version.py
 
 Subscription configuration is stored in `/app/state/siri.db`. Pending messages are stored under `/app/state/spool`. Mount `/app/state` if subscriptions and pending deliveries must survive container replacement.
 
-At startup, each persisted non-terminated subscription is recovered using the same policy used after a detected publisher restart:
+At startup, each persisted subscription is recovered using the same policy used after a detected publisher restart:
 
 1. Attempt to terminate the previous subscription.
 2. Treat an unknown or already-gone subscription as non-fatal.

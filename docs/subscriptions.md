@@ -8,7 +8,6 @@ The implementation uses the following high-level states:
 - `active`
 - `degraded`
 - `terminating`
-- `terminated`
 - `failed`
 
 
@@ -35,6 +34,12 @@ The same procedure is used for:
 - Manual `POST /api/subscriptions/{subscription_ref}/restart`.
 - Publisher restart detection.
 - Heartbeat/status monitoring that concludes the subscription must be recreated.
+
+## Termination and Deletion
+
+A successful `DELETE /api/subscriptions/{subscription_ref}` has no durable terminated state. The consumer first asks the publisher to terminate the subscription. After that succeeds, the SQLite row is deleted, all spool entries for the subscription are purged, and any cached sink instance is closed and removed. The same `subscription_ref` can then be created again.
+
+If publisher termination fails, the subscription remains persisted with status `failed` and its spool/sink state is retained so the failure is visible and recoverable.
 
 ## Publisher Restart Detection
 

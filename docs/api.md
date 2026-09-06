@@ -8,7 +8,7 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 - `GET /api/subscriptions` lists persisted subscriptions.
 - `GET /api/subscriptions/{subscription_ref}` returns one subscription.
 - `POST /api/subscriptions/{subscription_ref}/restart` performs terminate-then-subscribe recovery.
-- `DELETE /api/subscriptions/{subscription_ref}` terminates and marks a subscription terminated.
+- `DELETE /api/subscriptions/{subscription_ref}` terminates the publisher subscription, deletes it from SQLite, purges its spool entries, and closes its cached sink. The endpoint returns `204 No Content` on success.
 - `GET /health/live` is a process liveness endpoint.
 - `GET /health/ready` checks local persistence readiness.
 
