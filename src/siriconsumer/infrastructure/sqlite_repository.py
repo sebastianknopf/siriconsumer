@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from uuid import UUID
 
 import aiosqlite
 
 from siriconsumer.domain.enums import SubscriptionStatus
-from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
+from siriconsumer.domain.models import MqttSinkConfig, SubscriptionCreate, SubscriptionRecord
 
 
 class SqliteSubscriptionRepository:
@@ -89,7 +90,7 @@ class SqliteSubscriptionRepository:
                 """,
                 (
                     str(record.id),
-                    record.config.model_dump_json(),
+                    self._serialize_config(record.config),
                     record.status.value,
                     self._dt(record.last_heartbeat_at),
                     self._dt(record.last_message_at),
@@ -99,8 +100,25 @@ class SqliteSubscriptionRepository:
                     record.last_error,
                 ),
             )
-
             await db.commit()
+
+
+    @staticmethod
+    def _serialize_config(config: SubscriptionCreate) -> str:
+        """Serialize subscription configuration for durable storage.
+
+        Pydantic intentionally masks SecretStr values during JSON serialization.
+        Durable storage must retain the actual MQTT password so the subscription
+        can be reconstructed after a restart. Only this persistence path unwraps
+        the secret; normal API/log serialization remains masked.
+        """
+        data = config.model_dump(mode="json")
+        if isinstance(config.sink, MqttSinkConfig) and config.sink.password is not None:
+            sink = data.get("sink")
+            if isinstance(sink, dict):
+                sink["password"] = config.sink.password.get_secret_value()
+
+        return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
 
     async def update_status(
         self, subscription_id: UUID, status: SubscriptionStatus, error: str | None = None
