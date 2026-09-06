@@ -65,6 +65,9 @@ class FakeSpool:
         self.purged_refs.append(subscription_ref)
         return 3
 
+    async def wait_until_idle(self, subscription_ref: str) -> None:
+        return None
+
 
 class FakeSinkFactory:
     def __init__(self) -> None:

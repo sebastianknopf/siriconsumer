@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     spool_worker_count: int = Field(default=4, ge=1, le=64)
     spool_retry_base_seconds: float = Field(default=1.0, gt=0)
     spool_retry_max_seconds: float = Field(default=60.0, gt=0)
+    spool_max_retries: int = Field(default=5, ge=0)
     provider_check_interval_seconds: float = Field(default=30.0, gt=0)
     provider_request_timeout_seconds: float = Field(default=20.0, gt=0)
 

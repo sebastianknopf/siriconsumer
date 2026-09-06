@@ -43,20 +43,16 @@ class SubscriptionManager:
                 await self._repository.update_status(subscription_ref, SubscriptionStatus.FAILED, str(exc))
                 raise
 
-            # Once the producer accepted the termination there is no desired local
-            # subscription state left to recover. Delete durable state first so a
-            # crash during cleanup cannot resurrect the subscription on startup.
-            await self._repository.delete(subscription_ref)
+            # Pending entries can be discarded after termination, but an entry already
+            # claimed by a sink worker owns a delivery lease and must be allowed to
+            # finish (including its bounded retries) before durable subscription state
+            # or the cached sink is removed.
+            purged = await self._spool.purge(subscription_ref)
+            await self._spool.wait_until_idle(subscription_ref)
 
-            purged = 0
-            try:
-                purged = await self._spool.purge(subscription_ref)
-            except Exception:
-                logger.warning(
-                    "Failed to purge spool after subscription deletion subscription_ref=%s",
-                    subscription_ref,
-                    exc_info=True,
-                )
+            # No sink write is active now. Removing the database record first prevents
+            # a crash during the remaining cleanup from resurrecting the subscription.
+            await self._repository.delete(subscription_ref)
 
             try:
                 await self._sink_factory.remove(subscription_ref)

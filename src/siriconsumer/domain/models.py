@@ -116,6 +116,7 @@ class SpoolMetadata(BaseModel):
     received_at: datetime = Field(default_factory=utc_now)
     content_type: str | None = None
     message_type: str | None = None
+    retry_count: int = Field(default=0, ge=0)
 
 
 class SpoolEntry(BaseModel):

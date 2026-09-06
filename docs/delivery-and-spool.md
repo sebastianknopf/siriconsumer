@@ -9,7 +9,9 @@ Incoming payloads are accepted in two stages:
 
 Sink delivery happens asynchronously afterward. A slow downstream HTTP service therefore does not keep the publisher request open after the spool write has completed.
 
-Delivery is strictly sequential per subscription. Only the oldest pending message of a subscription is eligible for delivery. The next message is released to the worker pool only after the current message has either been delivered successfully or requeued after a failure. Different subscriptions can still be delivered in parallel by different workers.
+Delivery is strictly sequential per subscription. Only the oldest pending message of a subscription is eligible for delivery. Once a worker claims a message, that message is in-flight and protected from spool-limit eviction and subscription purge until sink processing finishes. The next message for the same subscription is released only after the in-flight message succeeds or is permanently dropped. Different subscriptions can still be delivered in parallel by different workers.
+
+A failed sink delivery is retried at most five times by default, in addition to the initial attempt. Retry count is persisted in spool metadata, so a graceful restart does not reset the retry budget. Exponential backoff is bounded by the configured retry delay settings. After the retry budget is exhausted, the message is deleted from the spool and a warning is logged.
 
 ## Spool Limit
 
@@ -21,7 +23,7 @@ At runtime the spool maintains:
 dict[subscription_ref, deque[SpoolEntry]]
 ```
 
-The deque is ordered oldest to newest. Adding the 101st message removes the oldest entry from the left side and deletes its spool file before appending the new entry. No directory traversal is required during normal message ingestion.
+The deque is ordered oldest to newest. The configured limit applies to pending messages, not to the single in-flight message. Adding a message beyond the pending limit removes the oldest non-in-flight entry and deletes its spool files before appending the new entry. An in-flight head is never selected for eviction. This remains O(1) and requires no directory traversal during normal message ingestion.
 
 The filesystem is scanned exactly once during application startup to reconstruct the in-memory index. If more than the configured limit is found for a subscription, the oldest entries are discarded during reconstruction.
 

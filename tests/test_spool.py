@@ -93,15 +93,59 @@ async def test_spool_purge_removes_all_messages_for_subscription(tmp_path) -> No
 
     purged = await spool.purge("sub-1")
 
-    assert purged == 2
-    assert spool.pending_count("sub-1") == 0
-    assert not first.payload_path.exists()
-    assert not first.metadata_path.exists()
-    assert not second.payload_path.exists()
-    assert not second.metadata_path.exists()
+    assert purged == 1
+    assert spool.pending_count("sub-1") == 1
+    assert claimed.payload_path.exists()
+    assert claimed.metadata_path.exists()
+    pending = second if claimed.metadata.message_id == first.metadata.message_id else first
+    assert not pending.payload_path.exists()
+    assert not pending.metadata_path.exists()
     assert other.payload_path.exists()
 
-    # An in-flight entry that was purged must not come back on retry.
-    await spool.requeue(claimed)
+    # The in-flight entry survives purge and can be released safely.
+    await spool.remove(claimed)
     next_entry = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
     assert next_entry.metadata.subscription_ref == "sub-2"
+
+@pytest.mark.asyncio
+async def test_spool_limit_never_evicts_inflight_message(tmp_path) -> None:
+    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=1)
+    await spool.initialize()
+
+    inflight = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"inflight")
+    claimed = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+    assert claimed.metadata.message_id == inflight.metadata.message_id
+
+    pending = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"pending")
+    replacement = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"replacement")
+
+    assert inflight.payload_path.exists()
+    assert inflight.metadata_path.exists()
+    assert not pending.payload_path.exists()
+    assert replacement.payload_path.exists()
+
+    await spool.remove(claimed)
+    next_entry = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+    assert next_entry.metadata.message_id == replacement.metadata.message_id
+
+
+@pytest.mark.asyncio
+async def test_purge_preserves_inflight_and_waits_until_it_finishes(tmp_path) -> None:
+    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=100)
+    await spool.initialize()
+
+    inflight = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"inflight")
+    pending = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"pending")
+    claimed = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+
+    purged = await spool.purge("sub-1")
+    assert purged == 1
+    assert inflight.payload_path.exists()
+    assert not pending.payload_path.exists()
+
+    waiter = asyncio.create_task(spool.wait_until_idle("sub-1"))
+    await asyncio.sleep(0.05)
+    assert not waiter.done()
+
+    await spool.remove(claimed)
+    await asyncio.wait_for(waiter, timeout=0.2)

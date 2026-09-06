@@ -24,6 +24,7 @@ class FileDurableSpool:
         self._inflight_ids: set[UUID] = set()
         self._inflight_subscriptions: set[str] = set()
         self._scheduled_subscriptions: set[str] = set()
+        self._idle_events: dict[str, asyncio.Event] = {}
         self._lock = asyncio.Lock()
 
     async def initialize(self) -> None:
@@ -41,14 +42,9 @@ class FileDurableSpool:
         async with self._lock:
             queue = self._index[metadata.subscription_ref]
 
-            while len(queue) >= self._max:
-                oldest_index = next(
-                    (
-                        i
-                        for i, item in enumerate(queue)
-                        if item.metadata.message_id not in self._inflight_ids
-                    ),
-                    0,
+            while self._pending_count_locked(queue) >= self._max:
+                oldest_index = (
+                    1 if metadata.subscription_ref in self._inflight_subscriptions else 0
                 )
                 oldest = queue[oldest_index]
                 del queue[oldest_index]
@@ -102,32 +98,45 @@ class FileDurableSpool:
             self._active_ids.discard(entry.metadata.message_id)
             self._inflight_ids.discard(entry.metadata.message_id)
             self._inflight_subscriptions.discard(subscription_ref)
+            self._mark_idle_if_needed(subscription_ref)
 
             await asyncio.to_thread(self._delete_files, entry)
 
             self._schedule_head(subscription_ref)
 
     async def purge(self, subscription_ref: str) -> int:
-        """Remove every queued or in-flight spool entry for a subscription.
-
-        An already executing sink write cannot be undone, but the entry is removed
-        from the active index so it can never be requeued or delivered again.
-        """
+        """Remove queued entries while preserving any entry currently owned by a sink worker."""
         async with self._lock:
-            queue = self._index.pop(subscription_ref, deque())
-            entries = list(queue)
+            queue = self._index.get(subscription_ref, deque())
+            removable = [
+                entry
+                for entry in queue
+                if entry.metadata.message_id not in self._inflight_ids
+            ]
 
-            self._scheduled_subscriptions.discard(subscription_ref)
-            self._inflight_subscriptions.discard(subscription_ref)
-
-            for entry in entries:
+            for entry in removable:
+                try:
+                    queue.remove(entry)
+                except ValueError:
+                    continue
                 self._active_ids.discard(entry.metadata.message_id)
-                self._inflight_ids.discard(entry.metadata.message_id)
-
-            for entry in entries:
                 await asyncio.to_thread(self._delete_files, entry)
 
-            return len(entries)
+            self._scheduled_subscriptions.discard(subscription_ref)
+            if not queue:
+                self._index.pop(subscription_ref, None)
+
+            return len(removable)
+
+    async def wait_until_idle(self, subscription_ref: str) -> None:
+        while True:
+            async with self._lock:
+                if subscription_ref not in self._inflight_subscriptions:
+                    return
+                event = self._idle_events.setdefault(subscription_ref, asyncio.Event())
+                event.clear()
+
+            await event.wait()
 
     async def next_pending(self) -> SpoolEntry:
         while True:
@@ -147,6 +156,7 @@ class FileDurableSpool:
                 self._scheduled_subscriptions.discard(subscription_ref)
                 self._inflight_subscriptions.add(subscription_ref)
                 self._inflight_ids.add(entry.metadata.message_id)
+                self._idle_events.setdefault(subscription_ref, asyncio.Event()).clear()
 
                 return entry
 
@@ -155,13 +165,42 @@ class FileDurableSpool:
             subscription_ref = entry.metadata.subscription_ref
             self._inflight_ids.discard(entry.metadata.message_id)
             self._inflight_subscriptions.discard(subscription_ref)
+            self._mark_idle_if_needed(subscription_ref)
             if entry.metadata.message_id in self._active_ids:
                 self._schedule_head(subscription_ref)
+
+    async def record_retry(self, entry: SpoolEntry) -> int:
+        async with self._lock:
+            if entry.metadata.message_id not in self._inflight_ids:
+                raise RuntimeError("Cannot record a retry for an entry that is not in flight")
+            entry.metadata.retry_count += 1
+            await asyncio.to_thread(
+                self._atomic_write_text,
+                entry.metadata_path,
+                entry.metadata.model_dump_json(),
+            )
+
+            return entry.metadata.retry_count
 
     def pending_count(self, subscription_ref: str) -> int:
         queue = self._index.get(subscription_ref)
 
         return len(queue) if queue is not None else 0
+
+    def _pending_count_locked(self, queue: Deque[SpoolEntry]) -> int:
+        if not queue:
+            return 0
+        subscription_ref = queue[0].metadata.subscription_ref
+
+        return len(queue) - (1 if subscription_ref in self._inflight_subscriptions else 0)
+
+    def _mark_idle_if_needed(self, subscription_ref: str) -> None:
+        if subscription_ref in self._inflight_subscriptions:
+            return
+
+        event = self._idle_events.get(subscription_ref)
+        if event is not None:
+            event.set()
 
     def _schedule_head(self, subscription_ref: str) -> None:
         if subscription_ref in self._inflight_subscriptions:
