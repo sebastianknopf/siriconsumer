@@ -67,12 +67,12 @@ async def receive_siri(request: Request) -> Response:
         if not subscription_ref:
             raise HTTPException(status_code=400, detail="Missing SubscriptionRef")
 
-        subscription = await _services(request).repository.get_by_ref(subscription_ref)
+        subscription = await _services(request).repository.get(subscription_ref)
         if subscription is None:
             raise HTTPException(status_code=404, detail="Unknown subscription")
 
         await _services(request).delivery_service.accept(
-            subscription.id,
+            subscription_ref,
             payload,
             request.headers.get("content-type"),
             "ServiceDelivery",

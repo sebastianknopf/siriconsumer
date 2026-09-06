@@ -22,7 +22,6 @@ class HttpSink:
     async def write(self, subscription: SubscriptionRecord, metadata: SpoolMetadata, payload: bytes) -> None:
         headers = {
             "Content-Type": metadata.content_type or "application/xml",
-            "X-Siri-Subscription-Id": str(subscription.id),
             "X-Siri-Subscription-Ref": subscription.config.subscription_ref,
             "X-Siri-Message-Id": str(metadata.message_id),
             **self._config.headers,

@@ -46,7 +46,7 @@ class ProviderMonitor:
         if subscription_ref is None:
             return
 
-        record = await self._repository.get_by_ref(subscription_ref)
+        record = await self._repository.get(subscription_ref)
         if record is None:
             logger.warning("Received heartbeat for unknown subscription_ref=%s", subscription_ref)
             return
@@ -97,9 +97,9 @@ class ProviderMonitor:
                     status = await self._siri_client.check_status(record)
                 except Exception:
                     logger.warning(
-                        "Active publisher status check failed provider=%s subscription_id=%s",
+                        "Active publisher status check failed provider=%s subscription_ref=%s",
                         provider_url,
-                        record.id,
+                        record.config.subscription_ref,
                         exc_info=True,
                     )
                     continue
@@ -128,9 +128,9 @@ class ProviderMonitor:
             age = (now - record.last_heartbeat_at).total_seconds()
             if age > record.config.heartbeat.timeout_seconds:
                 logger.warning(
-                    "Heartbeat timeout provider=%s subscription_id=%s age_seconds=%.1f",
+                    "Heartbeat timeout provider=%s subscription_ref=%s age_seconds=%.1f",
                     record.config.provider_url,
-                    record.id,
+                    record.config.subscription_ref,
                     age,
                 )
 

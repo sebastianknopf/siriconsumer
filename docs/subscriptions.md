@@ -11,6 +11,13 @@ The implementation uses the following high-level states:
 - `terminated`
 - `failed`
 
+
+## Subscription Identity
+
+`subscription_ref` is the single subscription identity used by the control API, SQLite repository, SIRI messages, durable spool, delivery workers, and sink cache. It is supplied by the API client when the subscription is created and is persisted as the primary key of the `subscriptions` table.
+
+A `subscription_ref` can exist only once in the database, regardless of subscription status. Attempting to create another subscription with the same ref is rejected with HTTP 400 and an explanatory error. There is no separate internal subscription ID.
+
 ## Recovery Policy
 
 Recovery is intentionally deterministic. The consumer does not trust that a previously active publisher-side subscription still exists after either side restarts.
@@ -25,7 +32,7 @@ For every subscription that must be recovered:
 The same procedure is used for:
 
 - Consumer startup.
-- Manual `POST /api/subscriptions/{id}/restart`.
+- Manual `POST /api/subscriptions/{subscription_ref}/restart`.
 - Publisher restart detection.
 - Heartbeat/status monitoring that concludes the subscription must be recreated.
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import UUID
 
 from siriconsumer.domain.models import SpoolMetadata
 from siriconsumer.interfaces.intf_spool import DurableSpool
@@ -15,17 +14,16 @@ class DeliveryService:
 
     async def accept(
         self,
-        subscription_id: UUID,
+        subscription_ref: str,
         payload: bytes,
         content_type: str | None,
         message_type: str | None,
     ) -> SpoolMetadata:
-        subscription = await self._repository.get(subscription_id)
+        subscription = await self._repository.get(subscription_ref)
         if subscription is None:
-            raise KeyError(str(subscription_id))
+            raise KeyError(subscription_ref)
 
         metadata = SpoolMetadata(
-            subscription_id=subscription.id,
             subscription_ref=subscription.config.subscription_ref,
             content_type=content_type,
             message_type=message_type,

@@ -44,7 +44,7 @@ class SinkWorkerPool:
             key = str(entry.metadata.message_id)
 
             try:
-                subscription = await self._repository.get(entry.metadata.subscription_id)
+                subscription = await self._repository.get(entry.metadata.subscription_ref)
                 if subscription is None:
                     logger.error("Dropping spool entry for unknown subscription message_id=%s", key)
                     await self._spool.remove(entry)

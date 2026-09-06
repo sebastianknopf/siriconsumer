@@ -18,7 +18,7 @@ Each subscription has a configurable maximum pending-message count. The default 
 At runtime the spool maintains:
 
 ```text
-dict[subscription_id, deque[SpoolEntry]]
+dict[subscription_ref, deque[SpoolEntry]]
 ```
 
 The deque is ordered oldest to newest. Adding the 101st message removes the oldest entry from the left side and deletes its spool file before appending the new entry. No directory traversal is required during normal message ingestion.

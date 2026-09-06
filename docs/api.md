@@ -4,11 +4,11 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 
 ## Endpoints
 
-- `POST /api/subscriptions` creates and activates a subscription.
+- `POST /api/subscriptions` creates and activates a subscription. `subscription_ref` must be globally unique in the local database; duplicate refs are rejected with HTTP 400.
 - `GET /api/subscriptions` lists persisted subscriptions.
-- `GET /api/subscriptions/{subscription_id}` returns one subscription.
-- `POST /api/subscriptions/{subscription_id}/restart` performs terminate-then-subscribe recovery.
-- `DELETE /api/subscriptions/{subscription_id}` terminates and marks a subscription terminated.
+- `GET /api/subscriptions/{subscription_ref}` returns one subscription.
+- `POST /api/subscriptions/{subscription_ref}/restart` performs terminate-then-subscribe recovery.
+- `DELETE /api/subscriptions/{subscription_ref}` terminates and marks a subscription terminated.
 - `GET /health/live` is a process liveness endpoint.
 - `GET /health/ready` checks local persistence readiness.
 

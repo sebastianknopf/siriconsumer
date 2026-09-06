@@ -97,6 +97,8 @@ src/siriconsumer/version.py
 
 ## Persistence and Recovery
 
+`subscription_ref` is the single subscription identifier throughout the application and must be unique in the local database. Creating a second subscription with the same ref returns HTTP 400.
+
 Subscription configuration is stored in `/app/state/siri.db`. Pending messages are stored under `/app/state/spool`. Mount `/app/state` if subscriptions and pending deliveries must survive container replacement.
 
 At startup, each persisted non-terminated subscription is recovered using the same policy used after a detected publisher restart:

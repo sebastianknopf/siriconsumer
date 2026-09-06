@@ -71,12 +71,12 @@ async def test_mqtt_sink_reuses_connection_for_multiple_messages(monkeypatch) ->
 
     await sink.write(
         subscription,
-        SpoolMetadata(subscription_id=subscription.id, subscription_ref="sub-1"),
+        SpoolMetadata(subscription_ref="sub-1"),
         b"first",
     )
     await sink.write(
         subscription,
-        SpoolMetadata(subscription_id=subscription.id, subscription_ref="sub-1"),
+        SpoolMetadata(subscription_ref="sub-1"),
         b"second",
     )
 
@@ -99,7 +99,7 @@ async def test_mqtt_sink_discards_failed_connection_and_reconnects(monkeypatch) 
     config = MqttSinkConfig(hostname="mqtt.example.com")
     subscription = _subscription(config)
     sink = MqttSink(config)
-    metadata = SpoolMetadata(subscription_id=subscription.id, subscription_ref="sub-1")
+    metadata = SpoolMetadata(subscription_ref="sub-1")
 
     with pytest.raises(RuntimeError, match="publish failed"):
         await sink.write(subscription, metadata, b"first")

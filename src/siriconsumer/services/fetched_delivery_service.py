@@ -42,14 +42,14 @@ class FetchedDeliveryService:
         while True:
             subscription_ref = await self._queue.get()
             try:
-                subscription = await self._repository.get_by_ref(subscription_ref)
+                subscription = await self._repository.get(subscription_ref)
                 if subscription is None:
                     logger.error("Fetched delivery for unknown subscription_ref=%s", subscription_ref)
                     continue
 
                 payload = await self._siri_client.fetch_delivery(subscription)
                 await self._delivery_service.accept(
-                    subscription.id, payload, "application/xml", "DataSupplyResponse"
+                    subscription_ref, payload, "application/xml", "DataSupplyResponse"
                 )
             except asyncio.CancelledError:
                 raise

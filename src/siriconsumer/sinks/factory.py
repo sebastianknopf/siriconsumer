@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from siriconsumer.domain.enums import SinkType
 from siriconsumer.domain.models import (
     DirectorySinkConfig,
@@ -19,10 +17,11 @@ from siriconsumer.sinks.s3_sink import S3Sink
 
 class DefaultSinkFactory:
     def __init__(self) -> None:
-        self._instances: dict[UUID, MessageSink] = {}
+        self._instances: dict[str, MessageSink] = {}
 
     def get(self, subscription: SubscriptionRecord) -> MessageSink:
-        existing = self._instances.get(subscription.id)
+        subscription_ref = subscription.config.subscription_ref
+        existing = self._instances.get(subscription_ref)
         if existing is not None:
             return existing
 
@@ -38,7 +37,7 @@ class DefaultSinkFactory:
         else:
             raise ValueError(f"Unsupported sink configuration: {config.type}")
 
-        self._instances[subscription.id] = sink
+        self._instances[subscription_ref] = sink
 
         return sink
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Protocol
-from uuid import UUID
 
 from siriconsumer.domain.models import SpoolEntry, SpoolMetadata
 
@@ -17,4 +16,4 @@ class DurableSpool(Protocol):
 
     async def requeue(self, entry: SpoolEntry) -> None: ...
 
-    def pending_count(self, subscription_id: UUID) -> int: ...
+    def pending_count(self, subscription_ref: str) -> int: ...

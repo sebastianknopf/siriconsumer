@@ -28,7 +28,6 @@ class MqttSink:
     ) -> None:
         topic = self._config.topic.format(
             subscription_ref=subscription.config.subscription_ref,
-            subscription_id=subscription.id,
         )
 
         # The spool already serializes delivery per subscription. The lock also

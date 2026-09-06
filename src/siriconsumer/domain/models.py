@@ -89,7 +89,7 @@ class SubscriptionCreate(BaseModel):
     delivery_mode: DeliveryMode
     requestor_ref: str
     subscriber_ref: str
-    subscription_ref: str
+    subscription_ref: str = Field(min_length=1)
     consumer_address: AnyHttpUrl | None = None
     initial_termination_time: datetime | None = None
     headers: dict[str, str] = Field(default_factory=dict)
@@ -100,7 +100,6 @@ class SubscriptionCreate(BaseModel):
 
 
 class SubscriptionRecord(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
     config: SubscriptionCreate
     status: SubscriptionStatus = SubscriptionStatus.CREATING
     last_heartbeat_at: datetime | None = None
@@ -113,7 +112,6 @@ class SubscriptionRecord(BaseModel):
 
 class SpoolMetadata(BaseModel):
     message_id: UUID = Field(default_factory=uuid4)
-    subscription_id: UUID
     subscription_ref: str
     received_at: datetime = Field(default_factory=utc_now)
     content_type: str | None = None
