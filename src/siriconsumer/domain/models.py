@@ -72,6 +72,9 @@ class MqttSinkConfig(BaseModel):
     username: str | None = None
     password: SecretStr | None = None
     tls: bool = False
+    connect_timeout_seconds: float = Field(default=10.0, gt=0)
+    publish_timeout_seconds: float = Field(default=30.0, gt=0)
+    disconnect_timeout_seconds: float = Field(default=5.0, gt=0)
 
 
 SinkConfig = Annotated[
