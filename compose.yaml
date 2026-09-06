@@ -1,0 +1,13 @@
+services:
+  siriconsumer:
+    build: .
+    image: siriconsumer:local
+    ports:
+      - "8080:8080"
+    environment:
+      SIRI_STATE_DIR: /app/state
+      SIRI_LOG_LEVEL: INFO
+    volumes:
+      - ./state:/app/state
+      - ./output:/app/output
+    restart: unless-stopped

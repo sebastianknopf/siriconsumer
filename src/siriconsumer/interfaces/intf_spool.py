@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from typing import Protocol
+from uuid import UUID
+
+from siriconsumer.domain.models import SpoolEntry, SpoolMetadata
+
+
+class DurableSpool(Protocol):
+    async def initialize(self) -> None: ...
+
+    async def put(self, metadata: SpoolMetadata, payload: bytes) -> SpoolEntry: ...
+
+    async def remove(self, entry: SpoolEntry) -> None: ...
+
+    async def next_pending(self) -> SpoolEntry: ...
+
+    async def requeue(self, entry: SpoolEntry) -> None: ...
+
+    def pending_count(self, subscription_id: UUID) -> int: ...

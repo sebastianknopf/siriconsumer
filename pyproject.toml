@@ -1,0 +1,62 @@
+[build-system]
+requires = [
+  "setuptools>=69",
+  "setuptools-scm>=8",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "siriconsumer"
+dynamic = ["version"]
+description = "Standalone SIRI consumer with durable local spooling and pluggable sinks."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "sebastianknopf" }]
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "httpx>=0.28,<1",
+  "lxml>=5.4,<7",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "aiosqlite>=0.21,<1",
+  "aioboto3>=15,<16",
+  "aiomqtt>=2.4,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.12,<1",
+  "mypy>=1.17,<2",
+  "types-lxml>=2025.3.30",
+]
+
+[project.scripts]
+siriconsumer = "siriconsumer.main:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["siriconsumer*"]
+
+[tool.setuptools_scm]
+version_file = "src/siriconsumer/version.py"
+local_scheme = "no-local-version"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["siriconsumer"]

@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+from typing import Protocol
+from uuid import UUID
+
+from siriconsumer.domain.enums import SubscriptionStatus
+from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
+
+
+class SubscriptionRepository(Protocol):
+    async def initialize(self) -> None: ...
+
+    async def create(self, config: SubscriptionCreate) -> SubscriptionRecord: ...
+
+    async def get(self, subscription_id: UUID) -> SubscriptionRecord | None: ...
+
+    async def get_by_ref(self, subscription_ref: str) -> SubscriptionRecord | None: ...
+
+    async def list_all(self) -> list[SubscriptionRecord]: ...
+
+    async def list_recoverable(self) -> list[SubscriptionRecord]: ...
+
+    async def list_by_provider(self, provider_url: str) -> list[SubscriptionRecord]: ...
+
+    async def save(self, record: SubscriptionRecord) -> None: ...
+
+    async def update_status(
+        self, subscription_id: UUID, status: SubscriptionStatus, error: str | None = None
+    ) -> None: ...
