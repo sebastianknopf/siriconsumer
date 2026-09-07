@@ -18,6 +18,8 @@ class DeliveryService:
         payload: bytes,
         content_type: str | None,
         message_type: str | None,
+        *,
+        wait_timeout_seconds: float | None = None,
     ) -> SpoolMetadata:
         subscription = await self._repository.get(subscription_ref)
         if subscription is None:
@@ -29,7 +31,11 @@ class DeliveryService:
             message_type=message_type,
         )
 
-        await self._spool.put(metadata, payload)
+        await self._spool.put(
+            metadata,
+            payload,
+            wait_timeout_seconds=wait_timeout_seconds,
+        )
 
         subscription.last_message_at = datetime.now(timezone.utc)
         await self._repository.save(subscription)

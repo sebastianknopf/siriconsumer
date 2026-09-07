@@ -6,22 +6,53 @@ import pytest
 
 from siriconsumer.domain.models import SpoolMetadata
 from siriconsumer.infrastructure.file_spool import FileDurableSpool
+from siriconsumer.interfaces.intf_spool import SpoolCapacityTimeoutError
 
 
 @pytest.mark.asyncio
-async def test_spool_evicts_oldest_without_directory_rescan(tmp_path) -> None:
-    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=3)
+async def test_spool_waits_for_capacity_instead_of_evicting(tmp_path) -> None:
+    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=1)
     await spool.initialize()
 
-    entries = []
-    for number in range(4):
-        metadata = SpoolMetadata(subscription_ref="sub-1")
-        entries.append(await spool.put(metadata, f"message-{number}".encode()))
+    first = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"first")
+    blocked = asyncio.create_task(
+        spool.put(
+            SpoolMetadata(subscription_ref="sub-1"),
+            b"second",
+            wait_timeout_seconds=1.0,
+        )
+    )
 
-    assert spool.pending_count("sub-1") == 3
-    assert not entries[0].payload_path.exists()
-    assert not entries[0].metadata_path.exists()
-    assert entries[-1].payload_path.exists()
+    await asyncio.sleep(0.05)
+    assert not blocked.done()
+    assert first.payload_path.exists()
+    assert first.metadata_path.exists()
+
+    claimed = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+    second = await asyncio.wait_for(blocked, timeout=0.2)
+
+    assert claimed.metadata.message_id == first.metadata.message_id
+    assert first.payload_path.exists()
+    assert second.payload_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_spool_capacity_wait_times_out_without_dropping_messages(tmp_path) -> None:
+    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=1)
+    await spool.initialize()
+
+    first = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"first")
+
+    with pytest.raises(SpoolCapacityTimeoutError):
+        await spool.put(
+            SpoolMetadata(subscription_ref="sub-1"),
+            b"second",
+            wait_timeout_seconds=0.05,
+        )
+
+    assert spool.pending_count("sub-1") == 1
+    assert first.payload_path.exists()
+    assert first.metadata_path.exists()
 
 
 @pytest.mark.asyncio
@@ -34,6 +65,28 @@ async def test_spool_rebuilds_index_on_startup(tmp_path) -> None:
     second = FileDurableSpool(root, max_messages_per_subscription=100)
     await second.initialize()
     assert second.pending_count("sub-1") == 1
+
+
+@pytest.mark.asyncio
+async def test_spool_keeps_startup_backlog_above_configured_limit(tmp_path) -> None:
+    root = tmp_path / "spool"
+    first = FileDurableSpool(root, max_messages_per_subscription=3)
+    await first.initialize()
+
+    entries = []
+    for number in range(3):
+        entries.append(
+            await first.put(
+                SpoolMetadata(subscription_ref="sub-1"),
+                f"message-{number}".encode(),
+            )
+        )
+
+    second = FileDurableSpool(root, max_messages_per_subscription=1)
+    await second.initialize()
+
+    assert second.pending_count("sub-1") == 3
+    assert all(entry.payload_path.exists() for entry in entries)
 
 
 @pytest.mark.asyncio
@@ -102,13 +155,13 @@ async def test_spool_purge_removes_all_messages_for_subscription(tmp_path) -> No
     assert not pending.metadata_path.exists()
     assert other.payload_path.exists()
 
-    # The in-flight entry survives purge and can be released safely.
     await spool.remove(claimed)
     next_entry = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
     assert next_entry.metadata.subscription_ref == "sub-2"
 
+
 @pytest.mark.asyncio
-async def test_spool_limit_never_evicts_inflight_message(tmp_path) -> None:
+async def test_spool_limit_counts_pending_but_not_inflight_message(tmp_path) -> None:
     spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=1)
     await spool.initialize()
 
@@ -117,16 +170,25 @@ async def test_spool_limit_never_evicts_inflight_message(tmp_path) -> None:
     assert claimed.metadata.message_id == inflight.metadata.message_id
 
     pending = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"pending")
-    replacement = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"replacement")
+    blocked = asyncio.create_task(
+        spool.put(
+            SpoolMetadata(subscription_ref="sub-1"),
+            b"next",
+            wait_timeout_seconds=1.0,
+        )
+    )
 
+    await asyncio.sleep(0.05)
+    assert not blocked.done()
     assert inflight.payload_path.exists()
-    assert inflight.metadata_path.exists()
-    assert not pending.payload_path.exists()
-    assert replacement.payload_path.exists()
+    assert pending.payload_path.exists()
 
     await spool.remove(claimed)
     next_entry = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
-    assert next_entry.metadata.message_id == replacement.metadata.message_id
+    assert next_entry.metadata.message_id == pending.metadata.message_id
+
+    newest = await asyncio.wait_for(blocked, timeout=0.2)
+    assert newest.payload_path.exists()
 
 
 @pytest.mark.asyncio

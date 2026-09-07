@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from siriconsumer.infrastructure.xml_codec import first_text, parse_xml
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 from siriconsumer.services.delivery_service import DeliveryService
@@ -16,10 +17,12 @@ class FetchedDeliveryService:
         repository: SubscriptionRepository,
         siri_client: SiriClient,
         delivery_service: DeliveryService,
+        max_more_data_requests: int = 100,
     ) -> None:
         self._repository = repository
         self._siri_client = siri_client
         self._delivery_service = delivery_service
+        self._max_more_data_requests = max_more_data_requests
         self._queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
         self._tasks: list[asyncio.Task[None]] = []
 
@@ -44,13 +47,33 @@ class FetchedDeliveryService:
             try:
                 subscription = await self._repository.get(subscription_ref)
                 if subscription is None:
-                    logger.error("Fetched delivery for unknown subscription_ref=%s", subscription_ref)
+                    logger.error(
+                        "Fetched delivery for unknown subscription_ref=%s", subscription_ref
+                    )
+
                     continue
 
-                payload = await self._siri_client.fetch_delivery(subscription)
-                await self._delivery_service.accept(
-                    subscription_ref, payload, "application/xml", "DataSupplyResponse"
-                )
+                more_data_requests = 0
+                while True:
+                    payload = await self._siri_client.fetch_delivery(subscription)
+                    await self._delivery_service.accept(
+                        subscription_ref, payload, "application/xml", "DataSupplyResponse"
+                    )
+
+                    if not self._has_more_data(payload):
+                        break
+
+                    if more_data_requests >= self._max_more_data_requests:
+                        logger.warning(
+                            "Fetched delivery MoreData loop stopped at configured limit "
+                            "subscription_ref=%s max_more_data_requests=%s",
+                            subscription_ref,
+                            self._max_more_data_requests,
+                        )
+
+                        break
+
+                    more_data_requests += 1
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -59,3 +82,10 @@ class FetchedDeliveryService:
                     worker_id,
                     subscription_ref,
                 )
+
+    @staticmethod
+    def _has_more_data(payload: bytes) -> bool:
+        root = parse_xml(payload)
+        value = first_text(root, "MoreData")
+
+        return value is not None and value.strip().lower() in {"true", "1"}

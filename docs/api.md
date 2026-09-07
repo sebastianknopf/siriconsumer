@@ -12,6 +12,6 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 - `GET /health/live` is a process liveness endpoint.
 - `GET /health/ready` checks local persistence readiness.
 
-- `POST /siri` receives SIRI publisher callbacks.
+- `POST /siri` receives SIRI publisher callbacks. DirectDelivery waits for per-subscription spool capacity for up to `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS`; if capacity remains exhausted, the endpoint returns HTTP 503 so the publisher can retry.
 
 The exact request and response schemas are visible in Swagger UI.

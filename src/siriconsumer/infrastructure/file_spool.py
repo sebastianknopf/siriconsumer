@@ -10,6 +10,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from siriconsumer.domain.models import SpoolEntry, SpoolMetadata
+from siriconsumer.interfaces.intf_spool import SpoolCapacityTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class FileDurableSpool:
         self._scheduled_subscriptions: set[str] = set()
         self._idle_events: dict[str, asyncio.Event] = {}
         self._lock = asyncio.Lock()
+        self._capacity_changed = asyncio.Condition(self._lock)
 
     async def initialize(self) -> None:
         self._root.mkdir(parents=True, exist_ok=True)
@@ -38,28 +40,28 @@ class FileDurableSpool:
 
             self._schedule_head(subscription_ref)
 
-    async def put(self, metadata: SpoolMetadata, payload: bytes) -> SpoolEntry:
-        async with self._lock:
-            queue = self._index[metadata.subscription_ref]
-
-            while self._pending_count_locked(queue) >= self._max:
-                oldest_index = (
-                    1 if metadata.subscription_ref in self._inflight_subscriptions else 0
-                )
-                oldest = queue[oldest_index]
-                del queue[oldest_index]
-
-                self._active_ids.discard(oldest.metadata.message_id)
-                if oldest_index == 0:
-                    self._scheduled_subscriptions.discard(metadata.subscription_ref)
-                await asyncio.to_thread(self._delete_files, oldest)
-
-                logger.warning(
-                    "Spool limit reached; dropped oldest pending message "
-                    "subscription_ref=%s message_id=%s",
-                    metadata.subscription_ref,
-                    oldest.metadata.message_id,
-                )
+    async def put(
+        self,
+        metadata: SpoolMetadata,
+        payload: bytes,
+        *,
+        wait_timeout_seconds: float | None = None,
+    ) -> SpoolEntry:
+        async with self._capacity_changed:
+            try:
+                if wait_timeout_seconds is None:
+                    await self._capacity_changed.wait_for(
+                        lambda: self._has_capacity_locked(metadata.subscription_ref)
+                    )
+                else:
+                    async with asyncio.timeout(wait_timeout_seconds):
+                        await self._capacity_changed.wait_for(
+                            lambda: self._has_capacity_locked(metadata.subscription_ref)
+                        )
+            except TimeoutError as exc:
+                raise SpoolCapacityTimeoutError(
+                    f"Spool capacity timeout for subscription_ref={metadata.subscription_ref}"
+                ) from exc
 
             subscription_dir = self._root / quote(metadata.subscription_ref, safe="")
             subscription_dir.mkdir(parents=True, exist_ok=True)
@@ -76,7 +78,7 @@ class FileDurableSpool:
             entry = SpoolEntry(
                 metadata=metadata, payload_path=payload_path, metadata_path=metadata_path
             )
-            queue.append(entry)
+            self._index[metadata.subscription_ref].append(entry)
 
             self._active_ids.add(metadata.message_id)
             self._schedule_head(metadata.subscription_ref)
@@ -84,7 +86,7 @@ class FileDurableSpool:
             return entry
 
     async def remove(self, entry: SpoolEntry) -> None:
-        async with self._lock:
+        async with self._capacity_changed:
             subscription_ref = entry.metadata.subscription_ref
             queue = self._index.get(subscription_ref)
             if queue is not None:
@@ -103,10 +105,11 @@ class FileDurableSpool:
             await asyncio.to_thread(self._delete_files, entry)
 
             self._schedule_head(subscription_ref)
+            self._capacity_changed.notify_all()
 
     async def purge(self, subscription_ref: str) -> int:
         """Remove queued entries while preserving any entry currently owned by a sink worker."""
-        async with self._lock:
+        async with self._capacity_changed:
             queue = self._index.get(subscription_ref, deque())
             removable = [
                 entry
@@ -126,6 +129,9 @@ class FileDurableSpool:
             if not queue:
                 self._index.pop(subscription_ref, None)
 
+            if removable:
+                self._capacity_changed.notify_all()
+
             return len(removable)
 
     async def wait_until_idle(self, subscription_ref: str) -> None:
@@ -141,7 +147,7 @@ class FileDurableSpool:
     async def next_pending(self) -> SpoolEntry:
         while True:
             entry = await self._ready.get()
-            async with self._lock:
+            async with self._capacity_changed:
                 subscription_ref = entry.metadata.subscription_ref
                 queue = self._index.get(subscription_ref)
                 if entry.metadata.message_id not in self._active_ids:
@@ -157,6 +163,7 @@ class FileDurableSpool:
                 self._inflight_subscriptions.add(subscription_ref)
                 self._inflight_ids.add(entry.metadata.message_id)
                 self._idle_events.setdefault(subscription_ref, asyncio.Event()).clear()
+                self._capacity_changed.notify_all()
 
                 return entry
 
@@ -186,6 +193,13 @@ class FileDurableSpool:
         queue = self._index.get(subscription_ref)
 
         return len(queue) if queue is not None else 0
+
+    def _has_capacity_locked(self, subscription_ref: str) -> bool:
+        queue = self._index.get(subscription_ref)
+        if not queue:
+            return True
+
+        return self._pending_count_locked(queue) < self._max
 
     def _pending_count_locked(self, queue: Deque[SpoolEntry]) -> int:
         if not queue:
@@ -240,17 +254,6 @@ class FileDurableSpool:
         for subscription_ref, queue in list(self._index.items()):
             ordered = sorted(queue, key=lambda item: item.metadata.received_at)
             self._index[subscription_ref] = deque(ordered)
-
-            while len(self._index[subscription_ref]) > self._max:
-                oldest = self._index[subscription_ref].popleft()
-
-                self._delete_files(oldest)
-
-                logger.warning(
-                    "Dropped excess startup spool entry subscription_ref=%s message_id=%s",
-                    subscription_ref,
-                    oldest.metadata.message_id,
-                )
 
     @staticmethod
     def _atomic_write_bytes(path: Path, content: bytes) -> None:

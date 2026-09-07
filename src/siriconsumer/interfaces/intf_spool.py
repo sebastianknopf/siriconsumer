@@ -5,10 +5,20 @@ from typing import Protocol
 from siriconsumer.domain.models import SpoolEntry, SpoolMetadata
 
 
+class SpoolCapacityTimeoutError(TimeoutError):
+    """Raised when spool capacity does not become available within the requested time."""
+
+
 class DurableSpool(Protocol):
     async def initialize(self) -> None: ...
 
-    async def put(self, metadata: SpoolMetadata, payload: bytes) -> SpoolEntry: ...
+    async def put(
+        self,
+        metadata: SpoolMetadata,
+        payload: bytes,
+        *,
+        wait_timeout_seconds: float | None = None,
+    ) -> SpoolEntry: ...
 
     async def remove(self, entry: SpoolEntry) -> None: ...
 

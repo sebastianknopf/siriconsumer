@@ -49,7 +49,12 @@ async def lifespan(app: FastAPI):
     subscription_manager = SubscriptionManager(repository, siri_client, spool, sink_factory)
 
     delivery_service = DeliveryService(repository, spool)
-    fetched_delivery_service = FetchedDeliveryService(repository, siri_client, delivery_service)
+    fetched_delivery_service = FetchedDeliveryService(
+        repository,
+        siri_client,
+        delivery_service,
+        max_more_data_requests=settings.fetched_delivery_max_more_data_requests,
+    )
 
     provider_monitor = ProviderMonitor(
         settings, repository, siri_client, subscription_manager

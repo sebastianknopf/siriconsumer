@@ -115,6 +115,10 @@ At startup, each persisted subscription is recovered using the same policy used 
 
 See [`docs/architecture.md`](docs/architecture.md), [`docs/subscriptions.md`](docs/subscriptions.md), and [`docs/delivery-and-spool.md`](docs/delivery-and-spool.md) for details.
 
+## Delivery Backpressure and FetchedDelivery Limits
+
+The spool never evicts an older accepted message to admit a newer one. DirectDelivery waits for spool capacity and returns HTTP 503 only when `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS` expires. FetchedDelivery follows `MoreData=true` with additional `DataSupplyRequest` calls, bounded by `SIRI_FETCHED_DELIVERY_MAX_MORE_DATA_REQUESTS`. See `docs/delivery-and-spool.md` for the exact semantics.
+
 ## Important Interoperability Note
 
 SIRI deployments differ in supported services, request variants, authentication, and optional fields. The XML builder in this project provides a compact generic baseline. Provider-specific profiles or exact XSD-driven request builders can be added behind `intf_siri_client.py` without changing the API, lifecycle manager, spool, or sink implementations.

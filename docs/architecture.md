@@ -40,7 +40,7 @@ Manages the desired subscription set. Configuration is persisted locally before 
 
 ### SIRI Receive API
 
-Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. Fetched delivery notifications schedule a fetch operation.
+Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. When the per-subscription spool is full, DirectDelivery applies bounded HTTP backpressure and returns 503 only if capacity does not become available before the configured throttle timeout. Fetched delivery notifications schedule a fetch operation, and `MoreData=true` responses trigger additional bounded `DataSupplyRequest` calls.
 
 ### Subscription Manager
 
@@ -52,7 +52,7 @@ Tracks inbound heartbeat information and can actively call `CheckStatus`. If a p
 
 ### Durable Spool
 
-The spool stores pending raw messages containing data besides the subscription management and heartbeat/status messages on disk. It maintains an in-memory deque per subscription with a configurable maximum of 100 messages by default. The oldest pending message is evicted when the limit is reached. A full disk scan is used only once during startup reconstruction.
+The spool stores pending raw messages containing data besides the subscription management and heartbeat/status messages on disk. It maintains an in-memory deque per subscription with a configurable maximum of 100 pending messages by default. Capacity pressure is handled by waiting for a slot instead of evicting existing messages. DirectDelivery bounds that wait with a configurable timeout; FetchedDelivery waits until capacity becomes available. A full disk scan is used only once during startup reconstruction, and existing backlog is retained even if it exceeds a newly configured lower limit.
 
 ### Sink Workers
 

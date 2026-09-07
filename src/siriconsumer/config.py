@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     spool_retry_base_seconds: float = Field(default=1.0, gt=0)
     spool_retry_max_seconds: float = Field(default=60.0, gt=0)
     spool_max_retries: int = Field(default=5, ge=0)
+    direct_delivery_throttle_timeout_seconds: float = Field(default=5.0, gt=0)
+    fetched_delivery_max_more_data_requests: int = Field(default=100, ge=0)
     provider_check_interval_seconds: float = Field(default=30.0, gt=0)
     provider_request_timeout_seconds: float = Field(default=20.0, gt=0)
 
