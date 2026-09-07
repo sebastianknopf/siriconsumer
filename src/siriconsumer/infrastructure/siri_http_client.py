@@ -127,23 +127,40 @@ class SiriHttpClient:
                 subscription_context, f"{{{SIRI_NS}}}HeartbeatInterval"
             ).text = config.heartbeat.interval
 
-        service_request = etree.SubElement(request, f"{{{SIRI_NS}}}{subscription_element}")
-        filter_request = etree.SubElement(service_request, f"{{{SIRI_NS}}}{request_element}")
-        for line in config.filters.lines:
-            etree.SubElement(filter_request, f"{{{SIRI_NS}}}LineRef").text = line
-        for operator in config.filters.operators:
-            etree.SubElement(filter_request, f"{{{SIRI_NS}}}OperatorRef").text = operator
+        subscription_request = etree.SubElement(request, f"{{{SIRI_NS}}}{subscription_element}")
 
-        etree.SubElement(service_request, f"{{{SIRI_NS}}}SubscriptionIdentifier").text = (
+        service_request = etree.SubElement(subscription_request, f"{{{SIRI_NS}}}{request_element}")
+        for line in config.filters.lines:
+            etree.SubElement(service_request, f"{{{SIRI_NS}}}LineRef").text = line
+        for operator in config.filters.operators:
+            etree.SubElement(service_request, f"{{{SIRI_NS}}}OperatorRef").text = operator
+
+        if config.request_timestamp is not None:
+            etree.SubElement(service_request, f"{{{SIRI_NS}}}RequestTimestamp").text = (
+                config.request_timestamp.isoformat()
+            )
+        if config.preview_interval is not None:
+            etree.SubElement(service_request, f"{{{SIRI_NS}}}PreviewInterval").text = (
+                config.preview_interval
+            )
+
+        etree.SubElement(subscription_request, f"{{{SIRI_NS}}}SubscriptionIdentifier").text = (
             config.subscription_ref
         )
+
         if config.initial_termination_time is not None:
-            etree.SubElement(service_request, f"{{{SIRI_NS}}}InitialTerminationTime").text = (
+            etree.SubElement(subscription_request, f"{{{SIRI_NS}}}InitialTerminationTime").text = (
                 config.initial_termination_time.isoformat()
             )
         if config.subscription_policy.update_interval:
-            etree.SubElement(service_request, f"{{{SIRI_NS}}}UpdateInterval").text = (
+            etree.SubElement(subscription_request, f"{{{SIRI_NS}}}UpdateInterval").text = (
                 config.subscription_policy.update_interval
+            )
+        if config.incremental_updates:
+            etree.SubElement(subscription_request, f"{{{SIRI_NS}}}IncrementalUpdates").text = "true"
+        if config.change_before_updates:
+            etree.SubElement(subscription_request, f"{{{SIRI_NS}}}ChangeBeforeUpdates").text = (
+                config.change_before_updates
             )
 
         return xml_bytes(root)

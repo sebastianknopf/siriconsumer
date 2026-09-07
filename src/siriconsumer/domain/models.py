@@ -90,8 +90,12 @@ class SubscriptionCreate(BaseModel):
     requestor_ref: str
     subscriber_ref: str
     subscription_ref: str = Field(min_length=1)
+    request_timestamp: datetime | None = None
     consumer_address: AnyHttpUrl | None = None
+    preview_interval: str = Field(default="PT2H")
     initial_termination_time: datetime | None = None
+    incremental_updates: bool = True
+    change_before_updates: str = Field(default="PT30S")
     headers: dict[str, str] = Field(default_factory=dict)
     filters: SubscriptionFilters = Field(default_factory=SubscriptionFilters)
     subscription_policy: SubscriptionPolicy = Field(default_factory=SubscriptionPolicy)
