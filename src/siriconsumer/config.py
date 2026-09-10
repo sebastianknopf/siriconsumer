@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     port: int = 8080
     state_dir: Path = Path("/app/state")
     log_level: str = "INFO"
-    debug_siri_logging: bool = False
     spool_max_messages_per_subscription: int = Field(default=100, ge=1)
     spool_worker_count: int = Field(default=4, ge=1, le=64)
     spool_retry_base_seconds: float = Field(default=1.0, gt=0)

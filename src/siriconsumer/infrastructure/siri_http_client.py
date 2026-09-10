@@ -2,18 +2,20 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import logging
-
 import httpx
 from lxml import etree
 
 from siriconsumer.domain.enums import DeliveryMode
 from siriconsumer.domain.models import SubscriptionRecord
-from siriconsumer.infrastructure.xml_codec import SIRI_NS, first_datetime, first_text, parse_xml, xml_bytes
+from siriconsumer.infrastructure.xml_codec import (
+    SIRI_NS,
+    first_datetime,
+    first_text,
+    parse_xml,
+    xml_bytes,
+)
+from siriconsumer.interfaces.intf_communication_monitor import CommunicationMonitor
 from siriconsumer.interfaces.intf_siri_client import ProviderStatus
-from siriconsumer.siri_debug import log_siri_payload
-
-logger = logging.getLogger(__name__)
 
 NSMAP = {None: SIRI_NS}
 
@@ -29,10 +31,13 @@ SERVICE_ELEMENTS: dict[str, tuple[str, str]] = {
 
 class SiriHttpClient:
     def __init__(
-        self, timeout_seconds: float = 20.0, *, debug_siri_logging: bool = False
+        self,
+        timeout_seconds: float = 20.0,
+        *,
+        communication_monitor: CommunicationMonitor | None = None,
     ) -> None:
         self._client = httpx.AsyncClient(timeout=timeout_seconds)
-        self._debug_siri_logging = debug_siri_logging
+        self._communication_monitor = communication_monitor
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -80,23 +85,24 @@ class SiriHttpClient:
             headers[name] = value
 
         endpoint = str(subscription.config.provider_url)
-        log_siri_payload(
-            logger,
-            enabled=self._debug_siri_logging,
-            direction="OUTGOING REQUEST",
-            payload=payload,
-            endpoint=endpoint,
-        )
+        if self._communication_monitor is not None:
+            self._communication_monitor.publish(
+                direction="outgoing",
+                kind="request",
+                payload=payload,
+                endpoint=endpoint,
+            )
 
         response = await self._client.post(endpoint, content=payload, headers=headers)
-        log_siri_payload(
-            logger,
-            enabled=self._debug_siri_logging,
-            direction=f"INCOMING RESPONSE status={response.status_code}",
-            payload=response.content,
-            endpoint=endpoint,
-        )
-        
+        if self._communication_monitor is not None:
+            self._communication_monitor.publish(
+                direction="incoming",
+                kind="response",
+                payload=response.content,
+                endpoint=endpoint,
+                status_code=response.status_code,
+            )
+
         return response
 
     @staticmethod

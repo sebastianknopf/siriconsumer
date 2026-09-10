@@ -38,6 +38,14 @@ Then open the Swagger UI:
 http://localhost:8080/api/swagger
 ```
 
+For live SIRI wire diagnostics, connect a WebSocket client such as Insomnia to:
+
+```text
+ws://localhost:8080/api/communication
+```
+
+Only one observer can be connected at a time. The endpoint emits individual incoming and outgoing SIRI messages as JSON events with pretty-printed XML. XML pretty-printing is activated only while the WebSocket is connected; SIRI XML payloads are not written to DEBUG logs.
+
 ## Local Development
 
 ```bash

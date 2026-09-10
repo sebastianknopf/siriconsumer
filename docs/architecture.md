@@ -42,6 +42,10 @@ Manages the desired subscription set. Configuration is persisted locally before 
 
 Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. When the per-subscription spool is full, DirectDelivery applies bounded HTTP backpressure and returns 503 only if capacity does not become available before the configured throttle timeout. Fetched delivery notifications schedule a fetch operation, and `MoreData=true` responses trigger additional bounded `DataSupplyRequest` calls.
 
+### Live Communication Monitor
+
+A single optional WebSocket observer can connect to `/api/communication` to inspect live XML traffic in both directions. Incoming publisher callbacks and responses as well as outgoing publisher requests and SIRI acknowledgements are emitted as individual JSON events containing pretty-printed XML. The monitor has no durable storage. Its XML parser and formatter are not invoked unless a WebSocket connection is active, so normal production traffic does not pay XML pretty-printing overhead. The monitor does not write payload XML to application logs.
+
 ### Subscription Manager
 
 Owns lifecycle transitions and applies a single recovery policy: terminate first, then recreate from stored configuration. This policy is used during consumer startup, manual restart, heartbeat failure recovery, and detected publisher restart.

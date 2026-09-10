@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from lxml import etree
@@ -14,7 +13,6 @@ from siriconsumer.interfaces.intf_delivery_admission import (
     DeliveryAdmissionDeletedError,
 )
 from siriconsumer.interfaces.intf_spool import SpoolCapacityTimeoutError
-from siriconsumer.siri_debug import log_siri_payload
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +31,24 @@ def _ack(name: str) -> bytes:
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8")
 
 
+def _xml_response(request: Request, payload: bytes) -> Response:
+    _services(request).communication_monitor.publish(
+        direction="outgoing",
+        kind="response",
+        payload=payload,
+        endpoint=str(request.url),
+        status_code=200,
+    )
+    
+    return Response(content=payload, media_type="application/xml")
+
+
 @router.post("/siri")
 async def receive_siri(request: Request) -> Response:
     payload = await request.body()
-    log_siri_payload(
-        logger,
-        enabled=request.app.state.settings.debug_siri_logging,
-        direction="INCOMING REQUEST",
+    _services(request).communication_monitor.publish(
+        direction="incoming",
+        kind="request",
         payload=payload,
         endpoint=str(request.url),
     )
@@ -51,7 +60,9 @@ async def receive_siri(request: Request) -> Response:
 
     root_name = local_name(root)
     child_names = [local_name(child) for child in root.iter()]
-    subscription_ref = first_text(root, "SubscriptionRef") or first_text(root, "SubscriptionIdentifier")
+    subscription_ref = first_text(root, "SubscriptionRef") or first_text(
+        root, "SubscriptionIdentifier"
+    )
 
     if "DataReadyNotification" in child_names:
         if not subscription_ref:
@@ -59,14 +70,16 @@ async def receive_siri(request: Request) -> Response:
 
         await _services(request).fetched_delivery_service.schedule(subscription_ref)
 
-        return Response(content=_ack("DataReadyAcknowledgement"), media_type="application/xml")
+        return _xml_response(request, _ack("DataReadyAcknowledgement"))
 
     if "HeartbeatNotification" in child_names or root_name == "HeartbeatNotification":
         service_started_time: datetime | None = first_datetime(root, "ServiceStartedTime")
 
-        await _services(request).provider_monitor.record_heartbeat(subscription_ref, service_started_time)
+        await _services(request).provider_monitor.record_heartbeat(
+            subscription_ref, service_started_time
+        )
 
-        return Response(content=_ack("HeartbeatResponse"), media_type="application/xml")
+        return _xml_response(request, _ack("HeartbeatResponse"))
 
     if "ServiceDelivery" in child_names or root_name == "ServiceDelivery":
         if not subscription_ref:
@@ -101,6 +114,6 @@ async def receive_siri(request: Request) -> Response:
                 detail="Spool capacity is currently exhausted; retry delivery later",
             ) from exc
 
-        return Response(content=_ack("ServiceDeliveryResponse"), media_type="application/xml")
+        return _xml_response(request, _ack("ServiceDeliveryResponse"))
 
     raise HTTPException(status_code=400, detail="Unsupported SIRI message type")

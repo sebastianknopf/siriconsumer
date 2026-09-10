@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from siriconsumer.infrastructure.file_spool import FileDurableSpool
 from siriconsumer.infrastructure.siri_http_client import SiriHttpClient
 from siriconsumer.infrastructure.sqlite_repository import SqliteSubscriptionRepository
+from siriconsumer.services.communication_monitor import LiveCommunicationMonitor
 from siriconsumer.services.delivery_service import DeliveryService
 from siriconsumer.services.fetched_delivery_service import FetchedDeliveryService
 from siriconsumer.services.provider_monitor import ProviderMonitor
@@ -16,6 +17,7 @@ from siriconsumer.sinks.factory import DefaultSinkFactory
 @dataclass(slots=True)
 class AppServices:
     repository: SqliteSubscriptionRepository
+    communication_monitor: LiveCommunicationMonitor
     siri_client: SiriHttpClient
     spool: FileDurableSpool
     sink_factory: DefaultSinkFactory
