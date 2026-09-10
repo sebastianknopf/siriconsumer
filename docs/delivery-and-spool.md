@@ -38,7 +38,8 @@ The filesystem is scanned exactly once during application startup to reconstruct
 Inbound DirectDelivery uses a per-subscription admission lease. The lease is acquired before the subscription is resolved and before spool capacity is awaited. This creates a deterministic cut-off when a subscription is deleted:
 
 - A request that acquired its lease before termination started is considered accepted for processing and may finish.
-- A request arriving after the admission gate is closed is rejected with HTTP 410 and never enters the spool.
+- A request arriving after the admission gate is closed but before durable deletion completes is rejected with HTTP 410 and never enters the spool.
+- After the SQLite subscription row is deleted, subsequent callbacks for that `subscription_ref` return HTTP 404. The 410 response is therefore limited to the active termination window.
 - If a pre-cut-off request was throttled because the spool was full when termination begins, its normal `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS` deadline is disabled. It keeps waiting for capacity so a request already submitted by the publisher is not lost merely because termination started concurrently.
 - The subscription remains in SQLite until all admitted inbound requests have finished and the subscription spool has drained completely through the sink. Only then is the database row deleted and the cached sink closed.
 

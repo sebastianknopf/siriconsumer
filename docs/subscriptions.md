@@ -37,7 +37,7 @@ The same procedure is used for:
 
 ## Termination and Deletion
 
-A successful `DELETE /api/subscriptions/{subscription_ref}` has no durable terminated state. Termination establishes a local delivery cut-off before the publisher termination request is sent. DirectDelivery requests that acquired an inbound delivery lease before that cut-off are allowed to finish, including requests that were already waiting for spool capacity. Requests arriving after the cut-off are rejected and cannot create new spool entries.
+A successful `DELETE /api/subscriptions/{subscription_ref}` has no durable terminated state. Termination establishes a local delivery cut-off before the publisher termination request is sent. DirectDelivery requests that acquired an inbound delivery lease before that cut-off are allowed to finish, including requests that were already waiting for spool capacity. Requests arriving after the cut-off are rejected with HTTP 410 and cannot create new spool entries. Once the SQLite row is physically deleted, the admission state is marked deleted and later callbacks for that ref return HTTP 404 instead of 410.
 
 After the publisher accepts termination, the consumer waits for all pre-cut-off inbound delivery leases to finish and then drains every accepted spool entry for the subscription through its configured sink. The SQLite row is deleted only after the subscription spool is empty. The cached sink is then closed and removed. No accepted backlog is purged as part of a successful termination. The same `subscription_ref` can subsequently be created again, which reopens inbound delivery admission for that ref.
 

@@ -2,13 +2,23 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from enum import Enum
 
-from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmissionClosedError
+from siriconsumer.interfaces.intf_delivery_admission import (
+    DeliveryAdmissionClosedError,
+    DeliveryAdmissionDeletedError,
+)
+
+
+class _AdmissionMode(str, Enum):
+    ACCEPTING = "accepting"
+    CLOSING = "closing"
+    DELETED = "deleted"
 
 
 @dataclass(slots=True)
 class _AdmissionState:
-    accepting: bool = True
+    mode: _AdmissionMode = _AdmissionMode.ACCEPTING
     active_leases: int = 0
     closing_event: asyncio.Event = field(default_factory=asyncio.Event)
     drained_event: asyncio.Event = field(default_factory=asyncio.Event)
@@ -40,7 +50,6 @@ class _DeliveryLease:
         if self._released:
             return
         self._released = True
-
         await self._admission._release(self._subscription_ref, self._state)
 
 
@@ -50,6 +59,8 @@ class DeliveryAdmissionController:
     A delivery that acquires a lease before termination begins is allowed to finish.
     Closing a subscription prevents new leases and signals existing leases that their
     normal DirectDelivery throttle timeout should no longer abort the accepted request.
+    After durable deletion, later callbacks are distinguished from the temporary
+    termination window so the API can return HTTP 404 instead of HTTP 410.
     """
 
     def __init__(self) -> None:
@@ -59,27 +70,34 @@ class DeliveryAdmissionController:
     async def acquire(self, subscription_ref: str) -> _DeliveryLease:
         async with self._lock:
             state = self._states.setdefault(subscription_ref, _AdmissionState())
-            if not state.accepting:
+            if state.mode is _AdmissionMode.CLOSING:
                 raise DeliveryAdmissionClosedError(subscription_ref)
-
+            if state.mode is _AdmissionMode.DELETED:
+                raise DeliveryAdmissionDeletedError(subscription_ref)
             state.active_leases += 1
             state.drained_event.clear()
-
             return _DeliveryLease(self, subscription_ref, state)
 
     async def close(self, subscription_ref: str) -> None:
         async with self._lock:
             state = self._states.setdefault(subscription_ref, _AdmissionState())
-            state.accepting = False
+            state.mode = _AdmissionMode.CLOSING
             state.closing_event.set()
+            if state.active_leases == 0:
+                state.drained_event.set()
 
+    async def mark_deleted(self, subscription_ref: str) -> None:
+        async with self._lock:
+            state = self._states.setdefault(subscription_ref, _AdmissionState())
+            state.mode = _AdmissionMode.DELETED
+            state.closing_event.set()
             if state.active_leases == 0:
                 state.drained_event.set()
 
     async def reopen(self, subscription_ref: str) -> None:
         async with self._lock:
             state = self._states.setdefault(subscription_ref, _AdmissionState())
-            state.accepting = True
+            state.mode = _AdmissionMode.ACCEPTING
             state.closing_event.clear()
 
     async def wait_until_drained(self, subscription_ref: str) -> None:

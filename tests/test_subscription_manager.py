@@ -7,7 +7,10 @@ import pytest
 
 from siriconsumer.domain.enums import SubscriptionStatus
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
-from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmissionClosedError
+from siriconsumer.interfaces.intf_delivery_admission import (
+    DeliveryAdmissionClosedError,
+    DeliveryAdmissionDeletedError,
+)
 from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.subscription_manager import SubscriptionManager
 
@@ -93,6 +96,8 @@ async def test_successful_termination_deletes_subscription_and_cleans_runtime_st
     assert siri_client.terminated_refs == ["sub-1"]
     assert spool.empty_wait_refs == ["sub-1"]
     assert sink_factory.removed_refs == ["sub-1"]
+    with pytest.raises(DeliveryAdmissionDeletedError):
+        await admission.acquire("sub-1")
 
 
 @pytest.mark.asyncio

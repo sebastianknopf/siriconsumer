@@ -9,7 +9,10 @@ from lxml import etree
 
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.infrastructure.xml_codec import first_datetime, first_text, local_name, parse_xml
-from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmissionClosedError
+from siriconsumer.interfaces.intf_delivery_admission import (
+    DeliveryAdmissionClosedError,
+    DeliveryAdmissionDeletedError,
+)
 from siriconsumer.interfaces.intf_spool import SpoolCapacityTimeoutError
 from siriconsumer.siri_debug import log_siri_payload
 
@@ -84,7 +87,7 @@ async def receive_siri(request: Request) -> Response:
                 status_code=410,
                 detail="Subscription is terminating or has been deleted",
             ) from exc
-        except KeyError as exc:
+        except (DeliveryAdmissionDeletedError, KeyError) as exc:
             raise HTTPException(status_code=404, detail="Unknown subscription") from exc
         except SpoolCapacityTimeoutError as exc:
             logger.warning(

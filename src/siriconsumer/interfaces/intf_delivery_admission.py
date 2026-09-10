@@ -4,7 +4,11 @@ from typing import Protocol
 
 
 class DeliveryAdmissionClosedError(RuntimeError):
-    """Raised when a subscription no longer accepts new inbound deliveries."""
+    """Raised while a subscription is terminating and no new deliveries are accepted."""
+
+
+class DeliveryAdmissionDeletedError(RuntimeError):
+    """Raised after a subscription has been deleted from durable state."""
 
 
 class DeliveryLease(Protocol):
@@ -20,6 +24,8 @@ class DeliveryAdmission(Protocol):
     async def acquire(self, subscription_ref: str) -> DeliveryLease: ...
 
     async def close(self, subscription_ref: str) -> None: ...
+
+    async def mark_deleted(self, subscription_ref: str) -> None: ...
 
     async def reopen(self, subscription_ref: str) -> None: ...
 

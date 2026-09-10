@@ -6,7 +6,10 @@ import pytest
 
 from siriconsumer.domain.enums import SubscriptionStatus
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
-from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmissionClosedError
+from siriconsumer.interfaces.intf_delivery_admission import (
+    DeliveryAdmissionClosedError,
+    DeliveryAdmissionDeletedError,
+)
 from siriconsumer.interfaces.intf_spool import SpoolCapacityTimeoutError
 from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.delivery_service import DeliveryService
@@ -103,3 +106,21 @@ async def test_normal_delivery_still_times_out_when_not_terminating() -> None:
             "ServiceDelivery",
             wait_timeout_seconds=0.02,
         )
+
+
+@pytest.mark.asyncio
+async def test_deleted_subscription_is_distinguished_from_terminating_subscription() -> None:
+    admission = DeliveryAdmissionController()
+    await admission.close("sub-1")
+
+    with pytest.raises(DeliveryAdmissionClosedError):
+        await admission.acquire("sub-1")
+
+    await admission.mark_deleted("sub-1")
+
+    with pytest.raises(DeliveryAdmissionDeletedError):
+        await admission.acquire("sub-1")
+
+    await admission.reopen("sub-1")
+    lease = await admission.acquire("sub-1")
+    await lease.release()

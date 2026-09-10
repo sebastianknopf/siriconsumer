@@ -68,6 +68,10 @@ class SubscriptionManager:
             await self._spool.wait_until_empty(subscription_ref)
 
             await self._repository.delete(subscription_ref)
+            # The temporary 410 termination window ends exactly when durable
+            # subscription state is removed. Later callbacks are unknown and must
+            # therefore be reported as HTTP 404 until the same ref is recreated.
+            await self._delivery_admission.mark_deleted(subscription_ref)
 
             try:
                 await self._sink_factory.remove(subscription_ref)
