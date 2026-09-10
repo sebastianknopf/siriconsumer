@@ -144,6 +144,12 @@ class FileDurableSpool:
 
             await event.wait()
 
+    async def wait_until_empty(self, subscription_ref: str) -> None:
+        async with self._capacity_changed:
+            await self._capacity_changed.wait_for(
+                lambda: not self._index.get(subscription_ref)
+            )
+
     async def next_pending(self) -> SpoolEntry:
         while True:
             entry = await self._ready.get()

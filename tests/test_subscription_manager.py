@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 import pytest
 
 from siriconsumer.domain.enums import SubscriptionStatus
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
+from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmissionClosedError
+from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.subscription_manager import SubscriptionManager
 
 
@@ -59,14 +62,10 @@ class FakeSiriClient:
 
 class FakeSpool:
     def __init__(self) -> None:
-        self.purged_refs: list[str] = []
+        self.empty_wait_refs: list[str] = []
 
-    async def purge(self, subscription_ref: str) -> int:
-        self.purged_refs.append(subscription_ref)
-        return 3
-
-    async def wait_until_idle(self, subscription_ref: str) -> None:
-        return None
+    async def wait_until_empty(self, subscription_ref: str) -> None:
+        self.empty_wait_refs.append(subscription_ref)
 
 
 class FakeSinkFactory:
@@ -83,13 +82,16 @@ async def test_successful_termination_deletes_subscription_and_cleans_runtime_st
     siri_client = FakeSiriClient()
     spool = FakeSpool()
     sink_factory = FakeSinkFactory()
-    manager = SubscriptionManager(repository, siri_client, spool, sink_factory)  # type: ignore[arg-type]
+    admission = DeliveryAdmissionController()
+    manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, admission
+    )  # type: ignore[arg-type]
 
     await manager.terminate("sub-1")
 
     assert repository.record is None
     assert siri_client.terminated_refs == ["sub-1"]
-    assert spool.purged_refs == ["sub-1"]
+    assert spool.empty_wait_refs == ["sub-1"]
     assert sink_factory.removed_refs == ["sub-1"]
 
 
@@ -99,12 +101,41 @@ async def test_failed_publisher_termination_keeps_subscription_as_failed() -> No
     siri_client = FakeSiriClient(fail_terminate=True)
     spool = FakeSpool()
     sink_factory = FakeSinkFactory()
-    manager = SubscriptionManager(repository, siri_client, spool, sink_factory)  # type: ignore[arg-type]
+    admission = DeliveryAdmissionController()
+    manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, admission
+    )  # type: ignore[arg-type]
 
     with pytest.raises(RuntimeError, match="producer termination failed"):
         await manager.terminate("sub-1")
 
     assert repository.record is not None
     assert repository.record.status is SubscriptionStatus.FAILED
-    assert spool.purged_refs == []
+    assert spool.empty_wait_refs == []
     assert sink_factory.removed_refs == []
+
+
+@pytest.mark.asyncio
+async def test_termination_waits_for_preexisting_delivery_lease_before_delete() -> None:
+    repository = FakeRepository(
+        SubscriptionRecord(config=_config(), status=SubscriptionStatus.ACTIVE)
+    )
+    siri_client = FakeSiriClient()
+    spool = FakeSpool()
+    sink_factory = FakeSinkFactory()
+    admission = DeliveryAdmissionController()
+    manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, admission
+    )  # type: ignore[arg-type]
+
+    lease = await admission.acquire("sub-1")
+    termination = asyncio.create_task(manager.terminate("sub-1"))
+
+    await asyncio.sleep(0.02)
+    assert repository.record is not None
+    with pytest.raises(DeliveryAdmissionClosedError):
+        await admission.acquire("sub-1")
+
+    await lease.release()
+    await asyncio.wait_for(termination, timeout=0.2)
+    assert repository.record is None

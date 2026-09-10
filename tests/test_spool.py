@@ -211,3 +211,28 @@ async def test_purge_preserves_inflight_and_waits_until_it_finishes(tmp_path) ->
 
     await spool.remove(claimed)
     await asyncio.wait_for(waiter, timeout=0.2)
+
+
+@pytest.mark.asyncio
+async def test_wait_until_empty_waits_for_pending_and_inflight_entries(tmp_path) -> None:
+    spool = FileDurableSpool(tmp_path / "spool", max_messages_per_subscription=100)
+    await spool.initialize()
+
+    first = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"first")
+    second = await spool.put(SpoolMetadata(subscription_ref="sub-1"), b"second")
+    claimed_first = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+
+    waiter = asyncio.create_task(spool.wait_until_empty("sub-1"))
+    await asyncio.sleep(0.02)
+    assert not waiter.done()
+
+    await spool.remove(claimed_first)
+    claimed_second = await asyncio.wait_for(spool.next_pending(), timeout=0.2)
+    assert claimed_second.metadata.message_id == second.metadata.message_id
+    await asyncio.sleep(0.02)
+    assert not waiter.done()
+
+    await spool.remove(claimed_second)
+    await asyncio.wait_for(waiter, timeout=0.2)
+    assert not first.payload_path.exists()
+    assert not second.payload_path.exists()

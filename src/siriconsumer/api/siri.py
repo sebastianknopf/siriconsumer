@@ -9,6 +9,7 @@ from lxml import etree
 
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.infrastructure.xml_codec import first_datetime, first_text, local_name, parse_xml
+from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmissionClosedError
 from siriconsumer.interfaces.intf_spool import SpoolCapacityTimeoutError
 from siriconsumer.siri_debug import log_siri_payload
 
@@ -68,10 +69,6 @@ async def receive_siri(request: Request) -> Response:
         if not subscription_ref:
             raise HTTPException(status_code=400, detail="Missing SubscriptionRef")
 
-        subscription = await _services(request).repository.get(subscription_ref)
-        if subscription is None:
-            raise HTTPException(status_code=404, detail="Unknown subscription")
-
         try:
             await _services(request).delivery_service.accept(
                 subscription_ref,
@@ -82,6 +79,13 @@ async def receive_siri(request: Request) -> Response:
                     request.app.state.settings.direct_delivery_throttle_timeout_seconds
                 ),
             )
+        except DeliveryAdmissionClosedError as exc:
+            raise HTTPException(
+                status_code=410,
+                detail="Subscription is terminating or has been deleted",
+            ) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown subscription") from exc
         except SpoolCapacityTimeoutError as exc:
             logger.warning(
                 "Direct delivery rejected with HTTP 503 after spool throttle timeout "
@@ -89,7 +93,6 @@ async def receive_siri(request: Request) -> Response:
                 subscription_ref,
                 request.app.state.settings.direct_delivery_throttle_timeout_seconds,
             )
-
             raise HTTPException(
                 status_code=503,
                 detail="Spool capacity is currently exhausted; retry delivery later",

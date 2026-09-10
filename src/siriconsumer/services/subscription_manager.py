@@ -5,6 +5,7 @@ import logging
 
 from siriconsumer.domain.enums import SubscriptionStatus
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
+from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmission
 from siriconsumer.interfaces.intf_sink_factory import SinkFactory
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_spool import DurableSpool
@@ -20,38 +21,52 @@ class SubscriptionManager:
         siri_client: SiriClient,
         spool: DurableSpool,
         sink_factory: SinkFactory,
+        delivery_admission: DeliveryAdmission,
     ) -> None:
         self._repository = repository
         self._siri_client = siri_client
         self._spool = spool
         self._sink_factory = sink_factory
+        self._delivery_admission = delivery_admission
         self._locks: dict[str, asyncio.Lock] = {}
 
     async def create(self, config: SubscriptionCreate) -> SubscriptionRecord:
         record = await self._repository.create(config)
+        await self._delivery_admission.reopen(config.subscription_ref)
         await self._activate(record)
         return await self._require(config.subscription_ref)
 
     async def terminate(self, subscription_ref: str) -> None:
         record = await self._require(subscription_ref)
         async with self._lock(subscription_ref):
-            await self._repository.update_status(subscription_ref, SubscriptionStatus.TERMINATING)
+            # Establish the local cut-off before telling the publisher to terminate.
+            # Requests that already own a delivery lease may still finish; requests
+            # arriving after this point are rejected before they can enter the spool.
+            await self._delivery_admission.close(subscription_ref)
+            await self._repository.update_status(
+                subscription_ref, SubscriptionStatus.TERMINATING
+            )
 
             try:
                 await self._siri_client.terminate(record)
             except Exception as exc:
-                await self._repository.update_status(subscription_ref, SubscriptionStatus.FAILED, str(exc))
+                await self._repository.update_status(
+                    subscription_ref, SubscriptionStatus.FAILED, str(exc)
+                )
+
+                await self._delivery_admission.reopen(subscription_ref)
                 raise
 
-            # Pending entries can be discarded after termination, but an entry already
-            # claimed by a sink worker owns a delivery lease and must be allowed to
-            # finish (including its bounded retries) before durable subscription state
-            # or the cached sink is removed.
-            purged = await self._spool.purge(subscription_ref)
-            await self._spool.wait_until_idle(subscription_ref)
+            # Any DirectDelivery request admitted before the cut-off is allowed to
+            # finish. If it was throttled when termination started, its normal HTTP
+            # throttle timeout is disabled so it can persist as the sink drains.
+            await self._delivery_admission.wait_until_drained(subscription_ref)
 
-            # No sink write is active now. Removing the database record first prevents
-            # a crash during the remaining cleanup from resurrecting the subscription.
+            # No new inbound DirectDelivery can enter the spool now. Drain every
+            # message already accepted for this subscription through the configured
+            # sink, including bounded retries, before deleting durable state.
+            await self._spool.wait_until_empty(subscription_ref)
+
             await self._repository.delete(subscription_ref)
 
             try:
@@ -64,9 +79,8 @@ class SubscriptionManager:
                 )
 
             logger.info(
-                "Subscription terminated and deleted subscription_ref=%s purged_spool_messages=%s",
+                "Subscription terminated, drained, and deleted subscription_ref=%s",
                 subscription_ref,
-                purged,
             )
 
     async def recover(self, subscription_ref: str) -> SubscriptionRecord:

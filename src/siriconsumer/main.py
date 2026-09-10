@@ -14,6 +14,7 @@ from siriconsumer.infrastructure.file_spool import FileDurableSpool
 from siriconsumer.infrastructure.siri_http_client import SiriHttpClient
 from siriconsumer.infrastructure.sqlite_repository import SqliteSubscriptionRepository
 from siriconsumer.logging_config import configure_logging
+from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.delivery_service import DeliveryService
 from siriconsumer.services.fetched_delivery_service import FetchedDeliveryService
 from siriconsumer.services.provider_monitor import ProviderMonitor
@@ -45,10 +46,13 @@ async def lifespan(app: FastAPI):
     )
 
     sink_factory = DefaultSinkFactory()
+    delivery_admission = DeliveryAdmissionController()
 
-    subscription_manager = SubscriptionManager(repository, siri_client, spool, sink_factory)
+    subscription_manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, delivery_admission
+    )
 
-    delivery_service = DeliveryService(repository, spool)
+    delivery_service = DeliveryService(repository, spool, delivery_admission)
     fetched_delivery_service = FetchedDeliveryService(
         repository,
         siri_client,
