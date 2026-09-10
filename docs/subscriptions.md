@@ -41,6 +41,12 @@ A successful `DELETE /api/subscriptions/{subscription_ref}` has no durable termi
 
 If publisher termination fails, the subscription remains persisted with status `failed` and its spool/sink state is retained so the failure is visible and recoverable.
 
+## Concurrent Runtime Updates
+
+Subscription lifecycle state and runtime observation timestamps are persisted independently. Lifecycle transitions such as `creating`, `active`, `degraded`, `terminating`, and `failed` update only the `status` and `last_error` columns. Inbound delivery, heartbeat, and active status-check paths update only their respective timestamp columns.
+
+This separation prevents a stale `SubscriptionRecord` loaded by an inbound VM or other SIRI delivery from overwriting a newer lifecycle state. In particular, a delivery that arrives while a subscription request is still completing can update `last_message_at` without changing an `active` state that was persisted concurrently. The same rule applies to heartbeat and `ServiceStartedTime` updates.
+
 ## Publisher Restart Detection
 
 When available, `ServiceStartedTime` is treated as a publisher-instance marker. It may be learned from inbound heartbeat/status messages or active `CheckStatus` responses. A change from the last persisted value indicates a publisher restart and triggers recovery of all subscriptions using that provider URL.

@@ -57,11 +57,11 @@ class ProviderMonitor:
             and service_started_time != record.last_service_started_time
         )
 
-        record.last_heartbeat_at = now
-        if service_started_time is not None:
-            record.last_service_started_time = service_started_time
-
-        await self._repository.save(record)
+        await self._repository.update_heartbeat(
+            subscription_ref,
+            now,
+            service_started_time,
+        )
 
         if restart_detected:
             await self._recover_provider_once(str(record.config.provider_url))
@@ -106,8 +106,10 @@ class ProviderMonitor:
                         and record.last_service_started_time != status.service_started_time
                     ):
                         restart_detected = True
-                    record.last_service_started_time = status.service_started_time
-                    await self._repository.save(record)
+
+                    await self._repository.update_service_started_time(
+                        record.config.subscription_ref, status.service_started_time
+                    )
 
             if restart_detected:
                 await self._recover_provider_once(provider_url)

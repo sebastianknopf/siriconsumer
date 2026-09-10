@@ -78,36 +78,6 @@ class SqliteSubscriptionRepository:
         records = await self.list_all()
         return [record for record in records if str(record.config.provider_url) == provider_url]
 
-    async def save(self, record: SubscriptionRecord) -> None:
-        record.updated_at = datetime.now(timezone.utc)
-        async with aiosqlite.connect(self._database_path) as db:
-            cursor = await db.execute(
-                """
-                UPDATE subscriptions SET
-                    config_json = ?,
-                    status = ?,
-                    last_heartbeat_at = ?,
-                    last_message_at = ?,
-                    last_service_started_time = ?,
-                    updated_at = ?,
-                    last_error = ?
-                WHERE subscription_ref = ?
-                """,
-                (
-                    self._serialize_config(record.config),
-                    record.status.value,
-                    self._dt(record.last_heartbeat_at),
-                    self._dt(record.last_message_at),
-                    self._dt(record.last_service_started_time),
-                    self._dt(record.updated_at),
-                    record.last_error,
-                    record.config.subscription_ref,
-                ),
-            )
-            if cursor.rowcount != 1:
-                raise KeyError(record.config.subscription_ref)
-            await db.commit()
-
     async def delete(self, subscription_ref: str) -> None:
         async with aiosqlite.connect(self._database_path) as db:
             cursor = await db.execute(
@@ -140,14 +110,62 @@ class SqliteSubscriptionRepository:
     async def update_status(
         self, subscription_ref: str, status: SubscriptionStatus, error: str | None = None
     ) -> None:
-        record = await self.get(subscription_ref)
-        if record is None:
+        await self._update_columns(
+            subscription_ref,
+            "status = ?, last_error = ?",
+            (status.value, error),
+        )
+
+    async def update_last_message_at(
+        self, subscription_ref: str, last_message_at: datetime
+    ) -> None:
+        await self._update_columns(
+            subscription_ref,
+            "last_message_at = ?",
+            (self._dt(last_message_at),),
+        )
+
+    async def update_heartbeat(
+        self,
+        subscription_ref: str,
+        last_heartbeat_at: datetime,
+        service_started_time: datetime | None,
+    ) -> None:
+        if service_started_time is None:
+            await self._update_columns(
+                subscription_ref,
+                "last_heartbeat_at = ?",
+                (self._dt(last_heartbeat_at),),
+            )
             return
 
-        record.status = status
-        record.last_error = error
+        await self._update_columns(
+            subscription_ref,
+            "last_heartbeat_at = ?, last_service_started_time = ?",
+            (self._dt(last_heartbeat_at), self._dt(service_started_time)),
+        )
 
-        await self.save(record)
+    async def update_service_started_time(
+        self, subscription_ref: str, service_started_time: datetime
+    ) -> None:
+        await self._update_columns(
+            subscription_ref,
+            "last_service_started_time = ?",
+            (self._dt(service_started_time),),
+        )
+
+    async def _update_columns(
+        self, subscription_ref: str, assignments: str, values: tuple[object, ...]
+    ) -> None:
+        updated_at = datetime.now(timezone.utc)
+        async with aiosqlite.connect(self._database_path) as db:
+            cursor = await db.execute(
+                f"UPDATE subscriptions SET {assignments}, updated_at = ? WHERE subscription_ref = ?",
+                (*values, self._dt(updated_at), subscription_ref),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(subscription_ref)
+            await db.commit()
 
     async def _query(self, sql: str, params: tuple[object, ...] = ()) -> list[SubscriptionRecord]:
         async with aiosqlite.connect(self._database_path) as db:

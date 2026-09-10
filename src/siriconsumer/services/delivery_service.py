@@ -37,7 +37,8 @@ class DeliveryService:
             wait_timeout_seconds=wait_timeout_seconds,
         )
 
-        subscription.last_message_at = datetime.now(timezone.utc)
-        await self._repository.save(subscription)
+        await self._repository.update_last_message_at(
+            subscription_ref, datetime.now(timezone.utc)
+        )
 
         return metadata

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 
 import aiosqlite
 import pytest
 
+from siriconsumer.domain.enums import SubscriptionStatus
 from siriconsumer.domain.models import MqttSinkConfig, SubscriptionCreate
 from siriconsumer.infrastructure.sqlite_repository import SqliteSubscriptionRepository
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionAlreadyExistsError
@@ -89,3 +91,56 @@ async def test_delete_removes_subscription_and_allows_ref_reuse(tmp_path) -> Non
 
     recreated = await repository.create(_mqtt_config("reusable-ref"))
     assert recreated.config.subscription_ref == "reusable-ref"
+
+
+@pytest.mark.asyncio
+async def test_runtime_updates_do_not_overwrite_concurrent_status_change(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+
+    await repository.create(_mqtt_config("atomic-runtime-updates"))
+    stale_record = await repository.get("atomic-runtime-updates")
+    assert stale_record is not None
+    assert stale_record.status == SubscriptionStatus.CREATING
+
+    await repository.update_status("atomic-runtime-updates", SubscriptionStatus.ACTIVE)
+
+    message_at = datetime.now(timezone.utc)
+    heartbeat_at = message_at + timedelta(seconds=1)
+    service_started_time = message_at - timedelta(minutes=5)
+
+    await repository.update_last_message_at("atomic-runtime-updates", message_at)
+    await repository.update_heartbeat(
+        "atomic-runtime-updates", heartbeat_at, service_started_time
+    )
+
+    loaded = await repository.get("atomic-runtime-updates")
+    assert loaded is not None
+    assert loaded.status == SubscriptionStatus.ACTIVE
+    assert loaded.last_message_at == message_at
+    assert loaded.last_heartbeat_at == heartbeat_at
+    assert loaded.last_service_started_time == service_started_time
+
+
+@pytest.mark.asyncio
+async def test_status_update_does_not_overwrite_runtime_timestamps(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+
+    await repository.create(_mqtt_config("atomic-status-update"))
+    message_at = datetime.now(timezone.utc)
+    heartbeat_at = message_at + timedelta(seconds=1)
+    service_started_time = message_at - timedelta(minutes=10)
+
+    await repository.update_last_message_at("atomic-status-update", message_at)
+    await repository.update_heartbeat("atomic-status-update", heartbeat_at, service_started_time)
+    await repository.update_status("atomic-status-update", SubscriptionStatus.ACTIVE)
+
+    loaded = await repository.get("atomic-status-update")
+    assert loaded is not None
+    assert loaded.status == SubscriptionStatus.ACTIVE
+    assert loaded.last_message_at == message_at
+    assert loaded.last_heartbeat_at == heartbeat_at
+    assert loaded.last_service_started_time == service_started_time
