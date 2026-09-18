@@ -11,6 +11,101 @@ The implementation uses the following high-level states:
 - `failed`
 
 
+
+## Subscription Parameters
+
+The following table describes the generic fields accepted by `POST /api/subscriptions`. Profile-specific keys inside `parameters` are intentionally not listed here; see the documentation for the selected profile under `docs/profiles/`.
+
+| Property | Description | Examples |
+| --- | --- | --- |
+| `provider_url` | URL of the producer. Its exact interpretation is profile-specific. The default profile uses it as the SIRI endpoint; other profiles may use it as the base for action-specific producer URLs. | `"https://producer.example/siri"` |
+| `profile` | Communication profile identifier. Defaults to `default`. Profile and version are selected independently. | `"default"`, `"de-vdv"` |
+| `version` | Version of the selected communication profile. Defaults to `default`. | `"default"`, `"2"` |
+| `service` | SIRI service code exposed by the public API. Profiles map this code to their protocol-specific service where required. | `"ET"`, `"PT"`, `"VM"` |
+| `delivery_mode` | Delivery mode used by the subscription. | `"direct"`, `"fetched"` |
+| `requestor_ref` | Identifier of the requesting consumer. Profiles may map this to their corresponding consumer/sender identifier. | `"MY-CONSUMER"` |
+| `subscriber_ref` | SIRI subscriber reference. It remains a generic subscription field even when a selected profile does not use it. | `"MY-SUBSCRIBER"` |
+| `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER-LEIPZIG"` |
+| `subscription_ref` | Unique subscription identity inside the consumer. It is also used as the protocol subscription identifier where the selected profile maps it accordingly. | `"et-001"` |
+| `request_timestamp` | Optional request timestamp. When omitted, the profile can generate the appropriate current timestamp. | `"2026-09-18T18:30:00Z"` |
+| `consumer_address` | Optional externally reachable consumer callback URL. | `"https://consumer.example/consumer"` |
+| `preview_interval` | Requested ISO-8601 preview interval used by profiles/services that support it. Default: `PT2H`. | `"PT2H"`, `"PT30M"` |
+| `initial_termination_time` | Optional initial subscription termination timestamp. | `"2026-09-19T22:00:00Z"` |
+| `incremental_updates` | Requests incremental updates where supported. Default: `true`. | `true`, `false` |
+| `change_before_updates` | ISO-8601 change-before interval used by profiles/services that support it. Default: `PT30S`. | `"PT30S"`, `"PT1M"` |
+| `headers` | Arbitrary HTTP headers added to outbound requests for this subscription. | `{"Authorization": "Bearer ...", "X-Tenant": "dv"}` |
+| `logging` | Enables persistent pretty-printed XML communication logging for this subscription. Default: `false`. Logs are not automatically deleted when the subscription is deleted. | `false`, `true` |
+| `parameters` | Generic object containing profile-specific parameters. The supported keys and their semantics are documented by each profile. | `{"visId": "VIS-AREA-1"}` |
+| `filters.lines` | Optional list of line references used as subscription filters where supported. | `["10", "11"]` |
+| `filters.operators` | Optional list of operator references used as subscription filters where supported. | `["OP-1"]` |
+| `subscription_policy.update_interval` | Optional ISO-8601 minimum update interval requested from the producer. | `"PT30S"` |
+| `heartbeat.enabled` | Requests publisher heartbeat notifications where supported. Default: `true`. | `true`, `false` |
+| `heartbeat.interval` | Requested ISO-8601 heartbeat interval. Default: `PT1M`. | `"PT1M"`, `"PT30S"` |
+| `heartbeat.timeout_seconds` | Number of seconds without an expected heartbeat before recovery logic may be triggered. Default: `180`. | `180`, `300` |
+| `heartbeat.check_status_enabled` | Enables active status checks independently of heartbeat reception. Default: `true`. | `true`, `false` |
+| `sink` | Sink configuration used for delivered payloads. Its structure depends on the selected sink type; see [Sinks](sinks.md). | `{"type": "directory", "path": "/data/incoming"}` |
+
+### Complete Create Example
+
+The following example shows a complete request body for creating a standard SIRI subscription. Values are illustrative and should be adapted to the producer and deployment.
+
+```json
+{
+  "provider_url": "https://producer.example/siri",
+  "profile": "default",
+  "version": "default",
+  "service": "ET",
+  "delivery_mode": "direct",
+  "requestor_ref": "MY-CONSUMER",
+  "subscriber_ref": "MY-SUBSCRIBER",
+  "producer_ref": "MY-PRODUCER",
+  "subscription_ref": "et-001",
+  "request_timestamp": "2026-09-18T18:30:00Z",
+  "consumer_address": "https://consumer.example/consumer",
+  "preview_interval": "PT2H",
+  "initial_termination_time": "2026-09-19T22:00:00Z",
+  "incremental_updates": true,
+  "change_before_updates": "PT30S",
+  "headers": {
+    "Authorization": "Bearer example-token",
+    "X-Tenant": "dv"
+  },
+  "logging": true,
+  "parameters": {},
+  "filters": {
+    "lines": [
+      "10",
+      "11"
+    ],
+    "operators": [
+      "OP-1"
+    ]
+  },
+  "subscription_policy": {
+    "update_interval": "PT30S"
+  },
+  "heartbeat": {
+    "enabled": true,
+    "interval": "PT1M",
+    "timeout_seconds": 180,
+    "check_status_enabled": true
+  },
+  "sink": {
+    "type": "http",
+    "url": "https://downstream.example/messages",
+    "connect_timeout_seconds": 3.0,
+    "response_timeout_seconds": 15.0,
+    "max_concurrency": 8,
+    "headers": {
+      "Authorization": "Bearer downstream-token"
+    }
+  }
+}
+```
+
+For profile-specific values inside `parameters`, consult the corresponding profile document linked from `docs/profiles.md`. For all supported sink types and their configuration fields, see [Sinks](sinks.md).
+
+
 ## Communication Profile
 
 Every subscription has independent `profile` and `version` fields. Both default to `default`, preserving the existing standard SIRI behavior. A concrete protocol implementation is selected by the `(profile, version)` pair, so incompatible generations such as `de-vdv` version `2` and a future `de-vdv` version `3.1` can coexist. Profile-specific validation happens before a new subscription is persisted. See `docs/profiles.md`.

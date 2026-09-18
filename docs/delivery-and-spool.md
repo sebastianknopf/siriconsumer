@@ -53,26 +53,6 @@ If the response contains `MoreData=true` or `MoreData=1`, the same fetch worker 
 
 `SIRI_FETCHED_DELIVERY_MAX_MORE_DATA_REQUESTS` limits the number of additional requests that may be triggered by `MoreData=true` after the initial `DataSupplyRequest`. The default is 100. A value of 0 disables additional `MoreData` requests. If the producer still reports `MoreData=true` when the configured limit is reached, the loop stops and a warning is logged. Normal `MoreData` processing does not produce warnings.
 
-## Directory Sink
+## Sinks
 
-Writes the raw payload to the configured mounted directory. Atomic replacement is used to avoid exposing half-written files.
-
-## HTTP Sink
-
-Uses asynchronous HTTP requests with connection and response timeouts. A semaphore limits concurrent sends. Slow endpoints consume worker capacity but do not block the FastAPI event loop or the original SIRI request. Failed transient deliveries remain in the spool and are retried.
-
-## S3 Sink
-
-Uploads the raw bytes as an object. AWS credentials may be provided through the standard SDK environment, task role, instance profile, or explicit endpoint configuration for S3-compatible storage.
-
-## MQTT Sink
-
-Publishes the raw payload bytes to a configured topic. QoS 1 is the recommended default, giving at-least-once semantics. The spool entry is removed only after the publish operation completes successfully, so consumers should tolerate duplicate messages.
-
-Each MQTT sink instance keeps one connection open for its subscription and reuses it for consecutive messages. A burst of pending messages therefore does not reconnect between publishes. The connection is closed during application shutdown. If connect or publish fails, or if the configured timeout expires, the client is discarded and the durable spool retries the same message using a fresh connection.
-
-MQTT sink timeout settings:
-
-- `connect_timeout_seconds`: maximum time for establishing the broker connection, default 10 seconds.
-- `publish_timeout_seconds`: maximum time for one publish operation, including the QoS acknowledgement, default 30 seconds.
-- `disconnect_timeout_seconds`: maximum time allowed for best-effort disconnect cleanup, default 5 seconds.
+Delivered payloads are forwarded by the sink configured for the subscription. Sink types, behavior, and configuration parameters are documented separately in [Sinks](sinks.md).
