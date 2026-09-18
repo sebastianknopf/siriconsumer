@@ -16,12 +16,11 @@ from siriconsumer.interfaces.intf_communication_logger import (
 
 logger = logging.getLogger(__name__)
 
+COMMUNICATION_LOG_ROOT = Path("/var/log/siri")
+
 
 class FileCommunicationLogger:
     """Persist per-subscription XML communication without lifecycle cleanup."""
-
-    def __init__(self, root_path: Path) -> None:
-        self._root_path = root_path
 
     async def write(
         self,
@@ -66,7 +65,7 @@ class FileCommunicationLogger:
             pretty_print=True,
         )
 
-        directory = self._root_path / quote(subscription_ref, safe="")
+        directory = COMMUNICATION_LOG_ROOT / quote(subscription_ref, safe="")
         directory.mkdir(parents=True, exist_ok=True)
 
         while True:

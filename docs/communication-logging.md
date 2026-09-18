@@ -16,17 +16,13 @@ Protocol parsing that is required for the consumer's normal message handling is 
 
 ## Storage
 
-The container default is:
+The communication log directory inside the container is fixed to:
 
 ```text
 /var/log/siri
 ```
 
-It can be changed with:
-
-```text
-SIRI_COMMUNICATION_LOG_DIR=/var/log/siri
-```
+The path is intentionally not configurable through environment variables or application settings. Deployments can choose the host-side storage location only through the container volume mount.
 
 The supplied Compose configuration mounts the host directory:
 

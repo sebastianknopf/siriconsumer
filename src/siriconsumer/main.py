@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     settings.state_dir.mkdir(parents=True, exist_ok=True)
 
     repository = SqliteSubscriptionRepository(str(settings.database_path))
-    communication_logger = FileCommunicationLogger(settings.communication_log_dir)
+    communication_logger = FileCommunicationLogger()
     profile_registry = ProfileRegistry()
 
     siri_client = SiriHttpClient(
