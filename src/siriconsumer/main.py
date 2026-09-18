@@ -9,12 +9,14 @@ from siriconsumer.api.communication import router as communication_router
 from siriconsumer.api.control import router as control_router
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.api.health import router as health_router
-from siriconsumer.api.siri import router as siri_router
+from siriconsumer.api.profiles import router as profiles_router
+from siriconsumer.api.consumer import router as consumer_router
 from siriconsumer.config import Settings
 from siriconsumer.infrastructure.file_spool import FileDurableSpool
 from siriconsumer.infrastructure.siri_http_client import SiriHttpClient
 from siriconsumer.infrastructure.sqlite_repository import SqliteSubscriptionRepository
 from siriconsumer.logging_config import configure_logging
+from siriconsumer.profiles.registry import ProfileRegistry
 from siriconsumer.services.communication_monitor import LiveCommunicationMonitor
 from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.delivery_service import DeliveryService
@@ -39,10 +41,12 @@ async def lifespan(app: FastAPI):
 
     repository = SqliteSubscriptionRepository(str(settings.database_path))
     communication_monitor = LiveCommunicationMonitor()
+    profile_registry = ProfileRegistry()
 
     siri_client = SiriHttpClient(
         settings.provider_request_timeout_seconds,
         communication_monitor=communication_monitor,
+        profile_registry=profile_registry,
     )
     spool = FileDurableSpool(
         settings.spool_path,
@@ -53,7 +57,12 @@ async def lifespan(app: FastAPI):
     delivery_admission = DeliveryAdmissionController()
 
     subscription_manager = SubscriptionManager(
-        repository, siri_client, spool, sink_factory, delivery_admission
+        repository,
+        siri_client,
+        spool,
+        sink_factory,
+        delivery_admission,
+        profile_registry,
     )
 
     delivery_service = DeliveryService(repository, spool, delivery_admission)
@@ -62,6 +71,7 @@ async def lifespan(app: FastAPI):
         siri_client,
         delivery_service,
         max_more_data_requests=settings.fetched_delivery_max_more_data_requests,
+        profile_registry=profile_registry,
     )
 
     provider_monitor = ProviderMonitor(
@@ -74,6 +84,7 @@ async def lifespan(app: FastAPI):
         repository=repository,
         communication_monitor=communication_monitor,
         siri_client=siri_client,
+        profile_registry=profile_registry,
         spool=spool,
         sink_factory=sink_factory,
         subscription_manager=subscription_manager,
@@ -112,8 +123,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(control_router)
+app.include_router(profiles_router)
 app.include_router(communication_router)
-app.include_router(siri_router)
+app.include_router(consumer_router)
 app.include_router(health_router)
 
 

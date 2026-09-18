@@ -19,6 +19,8 @@ async def create_subscription(config: SubscriptionCreate, request: Request) -> S
         return await _services(request).subscription_manager.create(config)
     except SubscriptionAlreadyExistsError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Publisher subscription failed: {exc}") from exc
 

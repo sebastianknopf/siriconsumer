@@ -38,6 +38,10 @@ The application uses `asyncio` for long-lived workers, provider checks, HTTP I/O
 
 Manages the desired subscription set. Configuration is persisted locally before provider lifecycle operations are performed.
 
+### Communication Profiles
+
+The profile registry selects protocol behavior per subscription. `default` contains the existing standard SIRI XML behavior. `de-vdv` version `2` contains VDV 453/454 2.x XML, fetched-delivery semantics, and action-specific URL resolution. The registry selects implementations by independent profile ID and version, so incompatible protocol revisions can coexist under the same profile ID. XML builders/parsers live behind `intf_profile.py`; lifecycle, spool, retry, and sinks operate on protocol-neutral results.
+
 ### SIRI Receive API
 
 Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. When the per-subscription spool is full, DirectDelivery applies bounded HTTP backpressure and returns 503 only if capacity does not become available before the configured throttle timeout. Fetched delivery notifications schedule a fetch operation, and `MoreData=true` responses trigger additional bounded `DataSupplyRequest` calls.
@@ -48,7 +52,7 @@ A single optional WebSocket observer can connect to `/api/communication` to insp
 
 ### Subscription Manager
 
-Owns lifecycle transitions and applies a single recovery policy: terminate first, then recreate from stored configuration. This policy is used during consumer startup, manual restart, heartbeat failure recovery, and detected publisher restart.
+Validates new subscriptions through the selected communication profile before persistence. It then owns lifecycle transitions and applies a single recovery policy: terminate first, then recreate from stored configuration. This policy is used during consumer startup, manual restart, heartbeat failure recovery, and detected publisher restart.
 
 ### Provider Monitor
 

@@ -99,3 +99,65 @@ def test_subscription_request_omits_heartbeat_context_when_disabled() -> None:
 
     assert b"HeartbeatInterval" not in payload
     assert b"SubscriptionContext" not in payload
+
+
+@pytest.mark.asyncio
+async def test_vdv_profile_uses_action_specific_publisher_urls() -> None:
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        if request.url.path.endswith("aboverwalten.xml"):
+            return httpx.Response(
+                200,
+                content=b'<AboAntwort><Bestaetigung Ergebnis="ok" Fehlernummer="0"/></AboAntwort>',
+            )
+        if request.url.path.endswith("status.xml"):
+            return httpx.Response(
+                200,
+                content=(
+                    b'<StatusAntwort><Status Ergebnis="ok"/>'
+                    b'<StartDienstZst>2026-09-18T06:00:00Z</StartDienstZst></StatusAntwort>'
+                ),
+            )
+        return httpx.Response(
+            200,
+            content=b'<DatenAbrufenAntwort><WeitereDaten>false</WeitereDaten></DatenAbrufenAntwort>',
+        )
+
+    subscription = SubscriptionRecord(
+        config=SubscriptionCreate.model_validate(
+            {
+                "provider_url": "https://publisher.example/vdv/aus",
+                "profile": "de-vdv",
+            "version": "2",
+                "service": "ET",
+                "delivery_mode": "fetched",
+                "requestor_ref": "consumer",
+                "subscriber_ref": "consumer",
+                "producer_ref": "producer-control-centre",
+                "subscription_ref": "abo-1",
+                "initial_termination_time": "2026-09-19T04:00:00Z",
+                "sink": {"type": "directory", "path": "/tmp/vdv"},
+            }
+        )
+    )
+
+    client = SiriHttpClient()
+    await client._client.aclose()
+    client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    try:
+        await client.subscribe(subscription)
+        await client.check_status(subscription)
+        await client.fetch_delivery(subscription)
+        await client.terminate(subscription)
+    finally:
+        await client.close()
+
+    assert seen_paths == [
+        "/vdv/aus/aboverwalten.xml",
+        "/vdv/aus/status.xml",
+        "/vdv/aus/datenabrufen.xml",
+        "/vdv/aus/aboverwalten.xml",
+    ]

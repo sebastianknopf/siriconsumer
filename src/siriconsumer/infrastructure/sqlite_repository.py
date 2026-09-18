@@ -78,6 +78,19 @@ class SqliteSubscriptionRepository:
         records = await self.list_all()
         return [record for record in records if str(record.config.provider_url) == provider_url]
 
+    async def list_by_profile_service(
+        self, profile: str, version: str, service: str
+    ) -> list[SubscriptionRecord]:
+        records = await self.list_all()
+        service_key = service.strip().upper().replace("_", "-")
+        return [
+            record
+            for record in records
+            if record.config.profile == profile
+            and record.config.version == version
+            and record.config.service.strip().upper().replace("_", "-") == service_key
+        ]
+
     async def delete(self, subscription_ref: str) -> None:
         async with aiosqlite.connect(self._database_path) as db:
             cursor = await db.execute(

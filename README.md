@@ -77,13 +77,15 @@ src/siriconsumer/version.py
 ```json
 {
   "provider_url": "https://publisher.example/siri",
+  "profile": "default",
+  "version": "default",
   "service": "VM",
   "delivery_mode": "direct",
   "requestor_ref": "consumer-a",
   "subscriber_ref": "consumer-a",
   "subscription_ref": "vm-example",
   "request_timestamp": "2026-09-08T06:00:00Z",
-  "consumer_address": "http://siriconsumer:8080/siri",
+  "consumer_address": "http://siriconsumer:8080/consumer",
   "preview_interval": "PT2H",
   "initial_termination_time": "2999-12-31T23:59:59Z",
   "incremental_updates": true,
@@ -121,15 +123,17 @@ At startup, each persisted subscription is recovered using the same policy used 
 3. Recreate the subscription from the persisted configuration.
 4. Mark it active only after a successful provider response.
 
-See [`docs/architecture.md`](docs/architecture.md), [`docs/subscriptions.md`](docs/subscriptions.md), and [`docs/delivery-and-spool.md`](docs/delivery-and-spool.md) for details.
+See [`docs/architecture.md`](docs/architecture.md), [`docs/subscriptions.md`](docs/subscriptions.md), [`docs/profiles.md`](docs/profiles.md), and [`docs/delivery-and-spool.md`](docs/delivery-and-spool.md) for details.
 
 ## Delivery Backpressure and FetchedDelivery Limits
 
 The spool never evicts an older accepted message to admit a newer one. DirectDelivery waits for spool capacity and returns HTTP 503 only when `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS` expires. FetchedDelivery follows `MoreData=true` with additional `DataSupplyRequest` calls, bounded by `SIRI_FETCHED_DELIVERY_MAX_MORE_DATA_REQUESTS`. See `docs/delivery-and-spool.md` for the exact semantics.
 
-## Important Interoperability Note
+## Communication Profiles
 
-SIRI deployments differ in supported services, request variants, authentication, and optional fields. The XML builder in this project provides a compact generic baseline. Provider-specific profiles or exact XSD-driven request builders can be added behind `intf_siri_client.py` without changing the API, lifecycle manager, spool, or sink implementations.
+Subscriptions use the `default` profile unless `profile` is explicitly set. The default profile preserves the existing standard SIRI behavior and `/consumer` callback endpoint. Versioned profiles can provide different XML dialects, URL rules, and inbound callback semantics without changing the spool or sink pipeline.
+
+The first additional profile is `de-vdv` version `2`, targeting VDV 453 2.6.1 and VDV 454 2.2.1 with the common V2017e schema generation. Subscriptions can carry a generic `parameters` object whose keys are interpreted only by the selected profile. It uses VDV fetched delivery and action-specific publisher URLs such as `aboverwalten.xml`, `status.xml`, and `datenabrufen.xml`. The public API always uses SIRI service codes; profiles map them internally. VDV callbacks are routed as `/consumer/profile/de-vdv/2/{producer_ref}/{VDV-service}/{action}.xml`. See [`docs/profiles.md`](docs/profiles.md) for configuration and examples.
 
 ## License
 

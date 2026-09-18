@@ -17,7 +17,7 @@ def test_publish_does_not_parse_xml_without_active_connection(monkeypatch) -> No
         direction="incoming",
         kind="request",
         payload=b"<Siri/>",
-        endpoint="http://consumer.example/siri",
+        endpoint="http://consumer.example/consumer",
     )
 
 

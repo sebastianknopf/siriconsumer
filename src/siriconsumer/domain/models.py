@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID, uuid4
 
 from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr
@@ -83,12 +83,40 @@ SinkConfig = Annotated[
 ]
 
 
+class CommunicationProfileInfo(BaseModel):
+    profile: str
+    version: str
+    specification: str
+    supported_services: list[str]
+    supported_parameters: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class SubscriptionCreate(BaseModel):
     provider_url: AnyHttpUrl
-    service: str = Field(min_length=1, description="SIRI service code, for example VM or SX.")
+    profile: str = Field(
+        default="default",
+        min_length=1,
+        description="Communication profile. Defaults to standard SIRI.",
+    )
+    version: str = Field(
+        default="default",
+        min_length=1,
+        description="Communication profile version. Defaults to the default profile version.",
+    )
+    service: str = Field(
+        min_length=1,
+        description="Service code interpreted by the selected profile.",
+    )
     delivery_mode: DeliveryMode
     requestor_ref: str
     subscriber_ref: str
+    producer_ref: str | None = Field(
+        default=None,
+        description=(
+            "Producer identifier used by profiles that require an agreed remote "
+            "control-centre identifier."
+        ),
+    )
     subscription_ref: str = Field(min_length=1)
     request_timestamp: datetime | None = None
     consumer_address: AnyHttpUrl | None = None
@@ -97,6 +125,10 @@ class SubscriptionCreate(BaseModel):
     incremental_updates: bool = True
     change_before_updates: str = Field(default="PT30S")
     headers: dict[str, str] = Field(default_factory=dict)
+    parameters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Profile-specific subscription parameters.",
+    )
     filters: SubscriptionFilters = Field(default_factory=SubscriptionFilters)
     subscription_policy: SubscriptionPolicy = Field(default_factory=SubscriptionPolicy)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)

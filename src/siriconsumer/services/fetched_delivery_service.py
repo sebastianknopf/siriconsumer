@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from siriconsumer.infrastructure.xml_codec import first_text, parse_xml
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
+from siriconsumer.profiles.registry import ProfileRegistry
 from siriconsumer.services.delivery_service import DeliveryService
 
 logger = logging.getLogger(__name__)
@@ -18,11 +18,13 @@ class FetchedDeliveryService:
         siri_client: SiriClient,
         delivery_service: DeliveryService,
         max_more_data_requests: int = 100,
+        profile_registry: ProfileRegistry | None = None,
     ) -> None:
         self._repository = repository
         self._siri_client = siri_client
         self._delivery_service = delivery_service
         self._max_more_data_requests = max_more_data_requests
+        self._profile_registry = profile_registry or ProfileRegistry()
         self._queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
         self._tasks: list[asyncio.Task[None]] = []
 
@@ -55,12 +57,19 @@ class FetchedDeliveryService:
 
                 more_data_requests = 0
                 while True:
+                    profile = self._profile_registry.get(
+                        getattr(subscription.config, "profile", "default"),
+                        getattr(subscription.config, "version", "default")
+                    )
                     payload = await self._siri_client.fetch_delivery(subscription)
                     await self._delivery_service.accept(
-                        subscription_ref, payload, "application/xml", "DataSupplyResponse"
+                        subscription_ref,
+                        payload,
+                        "application/xml",
+                        profile.fetched_delivery_message_name,
                     )
 
-                    if not self._has_more_data(payload):
+                    if not profile.has_more_data(payload):
                         break
 
                     if more_data_requests >= self._max_more_data_requests:
@@ -85,7 +94,4 @@ class FetchedDeliveryService:
 
     @staticmethod
     def _has_more_data(payload: bytes) -> bool:
-        root = parse_xml(payload)
-        value = first_text(root, "MoreData")
-
-        return value is not None and value.strip().lower() in {"true", "1"}
+        return ProfileRegistry().get("default", "default").has_more_data(payload)

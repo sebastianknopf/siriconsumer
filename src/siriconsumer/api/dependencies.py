@@ -11,6 +11,7 @@ from siriconsumer.services.fetched_delivery_service import FetchedDeliveryServic
 from siriconsumer.services.provider_monitor import ProviderMonitor
 from siriconsumer.services.sink_worker import SinkWorkerPool
 from siriconsumer.services.subscription_manager import SubscriptionManager
+from siriconsumer.profiles.registry import ProfileRegistry
 from siriconsumer.sinks.factory import DefaultSinkFactory
 
 
@@ -19,6 +20,7 @@ class AppServices:
     repository: SqliteSubscriptionRepository
     communication_monitor: LiveCommunicationMonitor
     siri_client: SiriHttpClient
+    profile_registry: ProfileRegistry
     spool: FileDurableSpool
     sink_factory: DefaultSinkFactory
     subscription_manager: SubscriptionManager

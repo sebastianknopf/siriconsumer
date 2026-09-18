@@ -14,7 +14,7 @@ from siriconsumer.interfaces.intf_communication_monitor import (
 
 
 class LiveCommunicationMonitor:
-    """Expose live SIRI wire messages to at most one WebSocket observer."""
+    """Expose live producer/consumer XML messages to at most one WebSocket observer."""
 
     def __init__(self) -> None:
         self._queue: asyncio.Queue[dict[str, Any]] | None = None

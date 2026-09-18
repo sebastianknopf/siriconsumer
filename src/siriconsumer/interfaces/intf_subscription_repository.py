@@ -24,6 +24,10 @@ class SubscriptionRepository(Protocol):
 
     async def list_by_provider(self, provider_url: str) -> list[SubscriptionRecord]: ...
 
+    async def list_by_profile_service(
+        self, profile: str, version: str, service: str
+    ) -> list[SubscriptionRecord]: ...
+
     async def delete(self, subscription_ref: str) -> None: ...
 
     async def update_status(

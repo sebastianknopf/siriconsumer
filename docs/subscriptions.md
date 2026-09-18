@@ -11,6 +11,12 @@ The implementation uses the following high-level states:
 - `failed`
 
 
+## Communication Profile
+
+Every subscription has independent `profile` and `version` fields. Both default to `default`, preserving the existing standard SIRI behavior. A concrete protocol implementation is selected by the `(profile, version)` pair, so incompatible generations such as `de-vdv` version `2` and a future `de-vdv` version `3.1` can coexist. Profile-specific validation happens before a new subscription is persisted. See `docs/profiles.md`.
+
+The `service` field always uses SIRI service codes at the public API boundary, even for non-default profiles. The optional generic `producer_ref` identifies the remote producer where a profile needs an agreed producer identity; `de-vdv` version `2` requires it for callback routing.
+
 ## Subscription Identity
 
 `subscription_ref` is the single subscription identity used by the control API, SQLite repository, SIRI messages, durable spool, delivery workers, and sink cache. It is supplied by the API client when the subscription is created and is persisted as the primary key of the `subscriptions` table.

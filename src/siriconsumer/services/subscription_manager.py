@@ -9,6 +9,7 @@ from siriconsumer.interfaces.intf_delivery_admission import DeliveryAdmission
 from siriconsumer.interfaces.intf_sink_factory import SinkFactory
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_spool import DurableSpool
+from siriconsumer.profiles.registry import ProfileRegistry
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 
 logger = logging.getLogger(__name__)
@@ -22,15 +23,18 @@ class SubscriptionManager:
         spool: DurableSpool,
         sink_factory: SinkFactory,
         delivery_admission: DeliveryAdmission,
+        profile_registry: ProfileRegistry | None = None,
     ) -> None:
         self._repository = repository
         self._siri_client = siri_client
         self._spool = spool
         self._sink_factory = sink_factory
         self._delivery_admission = delivery_admission
+        self._profile_registry = profile_registry or ProfileRegistry()
         self._locks: dict[str, asyncio.Lock] = {}
 
     async def create(self, config: SubscriptionCreate) -> SubscriptionRecord:
+        self._profile_registry.get(config.profile, config.version).validate_subscription(config)
         record = await self._repository.create(config)
         await self._delivery_admission.reopen(config.subscription_ref)
         await self._activate(record)
