@@ -17,6 +17,13 @@ Every subscription has independent `profile` and `version` fields. Both default 
 
 The `service` field always uses SIRI service codes at the public API boundary, even for non-default profiles. The optional generic `producer_ref` identifies the remote producer where a profile needs an agreed producer identity; `de-vdv` version `2` requires it for callback routing.
 
+## Communication Logging
+
+`logging` is a generic boolean subscription field and defaults to `false`. When enabled, XML request and response payloads associated with the subscription are written to the per-subscription communication log directory. When disabled, the logging component returns before XML parsing and pretty-printing, so disabled subscriptions do not pay that formatting cost.
+
+Deleting a subscription does not delete its communication log directory or files. The application performs no automatic retention or cleanup of these logs. See `docs/communication-logging.md` for filenames, directions, storage configuration, and operational warnings.
+
+
 ## Subscription Identity
 
 `subscription_ref` is the single subscription identity used by the control API, SQLite repository, SIRI messages, durable spool, delivery workers, and sink cache. It is supplied by the API client when the subscription is created and is persisted as the primary key of the `subscriptions` table.

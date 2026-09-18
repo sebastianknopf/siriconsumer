@@ -21,6 +21,7 @@ docker run --rm \
   -p 8080:8080 \
   -v "$(pwd)/state:/app/state" \
   -v "$(pwd)/output:/app/output" \
+  -v "$(pwd)/log/siri:/var/log/siri" \
   siriconsumer
 ```
 
@@ -38,13 +39,7 @@ Then open the Swagger UI:
 http://localhost:8080/api/swagger
 ```
 
-For live SIRI wire diagnostics, connect a WebSocket client such as Insomnia to:
-
-```text
-ws://localhost:8080/api/communication
-```
-
-Only one observer can be connected at a time. The endpoint emits individual incoming and outgoing SIRI messages as JSON events with pretty-printed XML. XML pretty-printing is activated only while the WebSocket is connected; SIRI XML payloads are not written to DEBUG logs.
+Communication XML logging is disabled by default and can be enabled per subscription with `"logging": true`. Logged XML is written below `/var/log/siri/{subscription_ref}/`; Compose mounts this to `./log/siri` by default. The log files are deliberately retained when a subscription is deleted and are never cleaned up automatically by the application. See [`docs/communication-logging.md`](docs/communication-logging.md).
 
 ## Local Development
 
@@ -84,6 +79,7 @@ src/siriconsumer/version.py
   "requestor_ref": "consumer-a",
   "subscriber_ref": "consumer-a",
   "subscription_ref": "vm-example",
+  "logging": false,
   "request_timestamp": "2026-09-08T06:00:00Z",
   "consumer_address": "http://siriconsumer:8080/consumer",
   "preview_interval": "PT2H",
@@ -133,7 +129,7 @@ The spool never evicts an older accepted message to admit a newer one. DirectDel
 
 Subscriptions use the `default` profile unless `profile` is explicitly set. The default profile preserves the existing standard SIRI behavior and `/consumer` callback endpoint. Versioned profiles can provide different XML dialects, URL rules, and inbound callback semantics without changing the spool or sink pipeline.
 
-The first additional profile is `de-vdv` version `2`, targeting VDV 453 2.6.1 and VDV 454 2.2.1 with the common V2017e schema generation. Subscriptions can carry a generic `parameters` object whose keys are interpreted only by the selected profile. It uses VDV fetched delivery and action-specific publisher URLs such as `aboverwalten.xml`, `status.xml`, and `datenabrufen.xml`. The public API always uses SIRI service codes; profiles map them internally. VDV callbacks are routed as `/consumer/profile/de-vdv/2/{producer_ref}/{VDV-service}/{action}.xml`. See [`docs/profiles.md`](docs/profiles.md) for configuration and examples.
+The first additional profile is `de-vdv` version `2`, targeting VDV 453 2.6.1 and VDV 454 2.2.1 with the common V2017e schema generation. Subscriptions can carry a generic `parameters` object whose keys are interpreted only by the selected profile. It uses VDV fetched delivery and action-specific publisher URLs such as `aboverwalten.xml`, `status.xml`, and `datenabrufen.xml`. The public API always uses SIRI service codes; profiles map them internally. VDV callbacks are routed as `/consumer/profile/de-vdv/2/{producer_ref}/{VDV-service}/{action}.xml`. See [`docs/profiles.md`](docs/profiles.md) for the profile routing model and links to the individual profile documentation.
 
 ## License
 

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from siriconsumer.api.dependencies import AppServices
+from siriconsumer.domain.models import SubscriptionRecord
+from siriconsumer.interfaces.intf_communication_logger import (
+    CommunicationDirection,
+    CommunicationKind,
+)
 from siriconsumer.interfaces.intf_delivery_admission import (
     DeliveryAdmissionClosedError,
     DeliveryAdmissionDeletedError,
@@ -38,13 +44,32 @@ async def _matching_profile_subscriptions(
     return [record for record in records if record.config.producer_ref == producer_ref]
 
 
-def _xml_response(request: Request, payload: bytes) -> Response:
-    _services(request).communication_monitor.publish(
-        direction="outgoing",
-        kind="response",
+async def _log_for_subscriptions(
+    request: Request,
+    subscriptions: Sequence[SubscriptionRecord],
+    *,
+    direction: CommunicationDirection,
+    kind: CommunicationKind,
+    payload: bytes,
+) -> None:
+    for subscription in subscriptions:
+        await _services(request).communication_logger.write(
+            subscription,
+            direction=direction,
+            kind=kind,
+            payload=payload,
+        )
+
+
+async def _xml_response(
+    request: Request, payload: bytes, subscriptions: Sequence[SubscriptionRecord]
+) -> Response:
+    await _log_for_subscriptions(
+        request,
+        subscriptions,
+        direction="IN",
+        kind="Response",
         payload=payload,
-        endpoint=str(request.url),
-        status_code=200,
     )
     return Response(content=payload, media_type="application/xml")
 
@@ -77,9 +102,6 @@ async def _receive_profiled(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     payload = await request.body()
-    services.communication_monitor.publish(
-        direction="incoming", kind="request", payload=payload, endpoint=str(request.url)
-    )
 
     try:
         message = profile.parse_inbound(payload, path)
@@ -87,19 +109,57 @@ async def _receive_profiled(
         raise HTTPException(status_code=400, detail=f"Invalid or unsupported XML: {exc}") from exc
 
     subscriptions = []
-    if message.message_type is InboundMessageType.DATA_READY:
-        if message.subscription_ref:
-            await services.fetched_delivery_service.schedule(message.subscription_ref)
-        elif message.service:
+    if message.subscription_ref:
+        subscription = await services.repository.get(message.subscription_ref)
+        if subscription is not None:
+            subscriptions = [subscription]
+
+    if message.message_type is InboundMessageType.DATA_READY and not message.subscription_ref:
+        if not message.service:
+            raise HTTPException(
+                status_code=400,
+                detail="Data-ready notification cannot be mapped to a subscription or service",
+            )
+        subscriptions = await _matching_profile_subscriptions(
+            request, profile_id, version, message.service, message.producer_ref
+        )
+        if not subscriptions:
+            raise HTTPException(
+                status_code=404, detail="No subscription matches producer and service"
+            )
+
+    elif message.message_type is InboundMessageType.CLIENT_STATUS:
+        if message.service:
             subscriptions = await _matching_profile_subscriptions(
                 request, profile_id, version, message.service, message.producer_ref
             )
-            if not subscriptions:
-                raise HTTPException(status_code=404, detail="No subscription matches producer and service")
-            for subscription in subscriptions:
-                await services.fetched_delivery_service.schedule(subscription.config.subscription_ref)
+            if message.producer_ref is not None and not subscriptions:
+                raise HTTPException(
+                    status_code=404, detail="No subscription matches producer and service"
+                )
         else:
-            raise HTTPException(status_code=400, detail="Data-ready notification cannot be mapped to a subscription or service")
+            subscriptions = [
+                record
+                for record in await services.repository.list_all()
+                if record.config.profile == profile_id and record.config.version == version
+            ]
+
+    await _log_for_subscriptions(
+        request,
+        subscriptions,
+        direction="IN",
+        kind="Request",
+        payload=payload,
+    )
+
+    if message.message_type is InboundMessageType.DATA_READY:
+        if message.subscription_ref:
+            await services.fetched_delivery_service.schedule(message.subscription_ref)
+        else:
+            for subscription in subscriptions:
+                await services.fetched_delivery_service.schedule(
+                    subscription.config.subscription_ref
+                )
 
     elif message.message_type is InboundMessageType.HEARTBEAT:
         await services.provider_monitor.record_heartbeat(
@@ -118,30 +178,22 @@ async def _receive_profiled(
                 wait_timeout_seconds=request.app.state.settings.direct_delivery_throttle_timeout_seconds,
             )
         except DeliveryAdmissionClosedError as exc:
-            raise HTTPException(status_code=410, detail="Subscription is terminating or has been deleted") from exc
+            raise HTTPException(
+                status_code=410, detail="Subscription is terminating or has been deleted"
+            ) from exc
         except (DeliveryAdmissionDeletedError, KeyError) as exc:
             raise HTTPException(status_code=404, detail="Unknown subscription") from exc
         except SpoolCapacityTimeoutError as exc:
             logger.warning(
-                "Direct delivery rejected with HTTP 503 after spool throttle timeout subscription_ref=%s timeout_seconds=%s",
+                "Direct delivery rejected with HTTP 503 after spool throttle timeout "
+                "subscription_ref=%s timeout_seconds=%s",
                 message.subscription_ref,
                 request.app.state.settings.direct_delivery_throttle_timeout_seconds,
             )
-            raise HTTPException(status_code=503, detail="Spool capacity is currently exhausted; retry delivery later") from exc
-
-    elif message.message_type is InboundMessageType.CLIENT_STATUS:
-        if message.service:
-            subscriptions = await _matching_profile_subscriptions(
-                request, profile_id, version, message.service, message.producer_ref
-            )
-            if message.producer_ref is not None and not subscriptions:
-                raise HTTPException(status_code=404, detail="No subscription matches producer and service")
-        else:
-            subscriptions = [
-                record
-                for record in await services.repository.list_all()
-                if record.config.profile == profile_id and record.config.version == version
-            ]
+            raise HTTPException(
+                status_code=503,
+                detail="Spool capacity is currently exhausted; retry delivery later",
+            ) from exc
 
     response_payload = profile.build_inbound_response(message, subscriptions)
-    return _xml_response(request, response_payload)
+    return await _xml_response(request, response_payload, subscriptions)

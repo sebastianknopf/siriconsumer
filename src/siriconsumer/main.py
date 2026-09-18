@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from siriconsumer.api.communication import router as communication_router
 from siriconsumer.api.control import router as control_router
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.api.health import router as health_router
@@ -17,7 +16,7 @@ from siriconsumer.infrastructure.siri_http_client import SiriHttpClient
 from siriconsumer.infrastructure.sqlite_repository import SqliteSubscriptionRepository
 from siriconsumer.logging_config import configure_logging
 from siriconsumer.profiles.registry import ProfileRegistry
-from siriconsumer.services.communication_monitor import LiveCommunicationMonitor
+from siriconsumer.services.communication_logger import FileCommunicationLogger
 from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.delivery_service import DeliveryService
 from siriconsumer.services.fetched_delivery_service import FetchedDeliveryService
@@ -40,12 +39,12 @@ async def lifespan(app: FastAPI):
     settings.state_dir.mkdir(parents=True, exist_ok=True)
 
     repository = SqliteSubscriptionRepository(str(settings.database_path))
-    communication_monitor = LiveCommunicationMonitor()
+    communication_logger = FileCommunicationLogger(settings.communication_log_dir)
     profile_registry = ProfileRegistry()
 
     siri_client = SiriHttpClient(
         settings.provider_request_timeout_seconds,
-        communication_monitor=communication_monitor,
+        communication_logger=communication_logger,
         profile_registry=profile_registry,
     )
     spool = FileDurableSpool(
@@ -82,7 +81,7 @@ async def lifespan(app: FastAPI):
 
     services = AppServices(
         repository=repository,
-        communication_monitor=communication_monitor,
+        communication_logger=communication_logger,
         siri_client=siri_client,
         profile_registry=profile_registry,
         spool=spool,
@@ -124,7 +123,6 @@ app = FastAPI(
 )
 app.include_router(control_router)
 app.include_router(profiles_router)
-app.include_router(communication_router)
 app.include_router(consumer_router)
 app.include_router(health_router)
 

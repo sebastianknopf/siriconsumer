@@ -36,8 +36,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/state /app/output \
-    && chown -R appuser:appuser /app
+    && mkdir -p /app/state /app/output /var/log/siri \
+    && chown -R appuser:appuser /app /var/log/siri
 
 COPY --from=builder /app/dist/*.whl /tmp/
 
@@ -46,7 +46,7 @@ RUN pip install /tmp/*.whl \
 
 USER appuser
 
-VOLUME ["/app/state", "/app/output"]
+VOLUME ["/app/state", "/app/output", "/var/log/siri"]
 
 EXPOSE 8080
 

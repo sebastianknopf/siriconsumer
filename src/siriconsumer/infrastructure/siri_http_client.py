@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 
 from siriconsumer.domain.models import SubscriptionRecord
-from siriconsumer.interfaces.intf_communication_monitor import CommunicationMonitor
+from siriconsumer.interfaces.intf_communication_logger import CommunicationLogger
 from siriconsumer.interfaces.intf_profile import CommunicationProfile, PublisherAction
 from siriconsumer.interfaces.intf_siri_client import ProviderStatus
 from siriconsumer.profiles.registry import ProfileRegistry
@@ -14,11 +14,11 @@ class SiriHttpClient:
         self,
         timeout_seconds: float = 20.0,
         *,
-        communication_monitor: CommunicationMonitor | None = None,
+        communication_logger: CommunicationLogger | None = None,
         profile_registry: ProfileRegistry | None = None,
     ) -> None:
         self._client = httpx.AsyncClient(timeout=timeout_seconds)
-        self._communication_monitor = communication_monitor
+        self._communication_logger = communication_logger
         self._profile_registry = profile_registry or ProfileRegistry()
 
     async def close(self) -> None:
@@ -84,22 +84,15 @@ class SiriHttpClient:
 
         profile = self._profile(subscription)
         endpoint = profile.resolve_endpoint(action, subscription)
-        if self._communication_monitor is not None:
-            self._communication_monitor.publish(
-                direction="outgoing",
-                kind="request",
-                payload=payload,
-                endpoint=endpoint,
+        if self._communication_logger is not None:
+            await self._communication_logger.write(
+                subscription, direction="OUT", kind="Request", payload=payload
             )
 
         response = await self._client.post(endpoint, content=payload, headers=headers)
-        if self._communication_monitor is not None:
-            self._communication_monitor.publish(
-                direction="incoming",
-                kind="response",
-                payload=response.content,
-                endpoint=endpoint,
-                status_code=response.status_code,
+        if self._communication_logger is not None:
+            await self._communication_logger.write(
+                subscription, direction="OUT", kind="Response", payload=response.content
             )
 
         return response

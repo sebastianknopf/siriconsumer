@@ -125,6 +125,10 @@ class SubscriptionCreate(BaseModel):
     incremental_updates: bool = True
     change_before_updates: str = Field(default="PT30S")
     headers: dict[str, str] = Field(default_factory=dict)
+    logging: bool = Field(
+        default=False,
+        description="Persist pretty-printed XML communication for this subscription.",
+    )
     parameters: dict[str, Any] = Field(
         default_factory=dict,
         description="Profile-specific subscription parameters.",

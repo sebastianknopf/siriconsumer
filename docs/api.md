@@ -4,7 +4,7 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 
 ## Endpoints
 
-- `POST /api/subscriptions` creates and activates a subscription. The optional `parameters` object carries profile-specific values and defaults to `{}`. `subscription_ref` must be globally unique in the local database; duplicate refs are rejected with HTTP 400.
+- `POST /api/subscriptions` creates and activates a subscription. The optional `logging` flag defaults to `false`; when enabled, XML requests and responses for that subscription are persisted as described in `communication-logging.md`. The optional `parameters` object carries profile-specific values and defaults to `{}`. `subscription_ref` must be globally unique in the local database; duplicate refs are rejected with HTTP 400.
 - `GET /api/subscriptions` lists persisted subscriptions.
 - `GET /api/profiles` lists registered communication profiles, their specification target, supported service codes, and the profile-specific `parameters` keys supported per service.
 - `GET /api/subscriptions/{subscription_ref}` returns one subscription.
@@ -19,25 +19,3 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 `POST /consumer` receives SIRI publisher callbacks. DirectDelivery waits for per-subscription spool capacity for up to `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS`; if capacity remains exhausted, the endpoint returns HTTP 503 so the publisher can retry. While subscription termination is in progress, new DirectDelivery callbacks return HTTP 410 and do not enter the spool. A DirectDelivery callback admitted before termination is allowed to finish and no longer expires on the normal throttle timeout once termination begins. Once the SQLite subscription row has been physically deleted, later callbacks for that ref return HTTP 404. Recreating the same `subscription_ref` reopens delivery admission.
 
 The exact request and response schemas are visible in Swagger UI.
-
-## Live Communication WebSocket
-
-`/api/communication` is a WebSocket endpoint for observing live SIRI XML traffic between the consumer and publishers. It is intended for diagnostics and can be opened directly with WebSocket-capable clients such as Insomnia.
-
-The endpoint allows at most one active WebSocket connection. A second connection is accepted and immediately closed with WebSocket policy-violation code `1008`.
-
-Each message is sent as one JSON object:
-
-```json
-{
-  "timestamp": "2026-09-10T16:00:00.000000Z",
-  "direction": "incoming",
-  "kind": "request",
-  "endpoint": "http://consumer.example/consumer",
-  "xml": "<Siri>\n  ...\n</Siri>"
-}
-```
-
-`direction` is relative to the consumer. `incoming` covers publisher callbacks and publisher HTTP responses; `outgoing` covers consumer callbacks/acknowledgements and HTTP requests sent to publishers. `kind` distinguishes HTTP requests from responses. `status_code` is present for observed HTTP responses.
-
-The stream is live-only. It does not retain history or write observed XML to disk. XML decoding, parsing, and pretty-printing are performed only while a WebSocket observer is actively connected. Without an active observer, the monitoring path returns before parsing or decoding the payload.

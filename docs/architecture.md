@@ -46,9 +46,9 @@ The profile registry selects protocol behavior per subscription. `default` conta
 
 Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. When the per-subscription spool is full, DirectDelivery applies bounded HTTP backpressure and returns 503 only if capacity does not become available before the configured throttle timeout. Fetched delivery notifications schedule a fetch operation, and `MoreData=true` responses trigger additional bounded `DataSupplyRequest` calls.
 
-### Live Communication Monitor
+### Per-Subscription Communication Logging
 
-A single optional WebSocket observer can connect to `/api/communication` to inspect live XML traffic in both directions. Incoming publisher callbacks and responses as well as outgoing publisher requests and SIRI acknowledgements are emitted as individual JSON events containing pretty-printed XML. The monitor has no durable storage. Its XML parser and formatter are not invoked unless a WebSocket connection is active, so normal production traffic does not pay XML pretty-printing overhead. The monitor does not write payload XML to application logs.
+XML wire logging is controlled by the generic subscription field `logging`. The file logger returns immediately when the flag is false, before XML parsing or pretty-printing. When enabled, inbound consumer transactions and outbound publisher transactions are stored as pretty-printed XML below the configured communication log directory. Log storage is independent of subscription lifecycle deletion and is not automatically cleaned up. See `communication-logging.md`.
 
 ### Subscription Manager
 
