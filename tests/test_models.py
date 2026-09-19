@@ -12,7 +12,7 @@ def test_subscription_model_supports_filters_and_mqtt_sink() -> None:
             "requestor_ref": "consumer",
             "subscriber_ref": "consumer",
             "subscription_ref": "sub-1",
-            "consumer_address": "https://consumer.example/consumer",
+            "consumer_address": "https://consumer.example/",
             "headers": {"Authorization": "Bearer secret", "X-Tenant": "tenant-a"},
             "filters": {"lines": ["10"], "operators": ["op-1"]},
             "subscription_policy": {"update_interval": "PT30S"},

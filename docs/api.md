@@ -13,9 +13,9 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 - `GET /health/live` is a process liveness endpoint.
 - `GET /health/ready` checks local persistence readiness.
 
-- `POST /consumer` receives callbacks for the `default` SIRI profile.
-- `POST /consumer/profile/{profileId}/{version}/{path...}` receives callbacks for an explicitly selected profile/version pair. For `de-vdv` version `2`, paths follow `{producer_ref}/{VDV-service}/{action}.xml`, for example `PRODUCER-LEIPZIG/AUS/datenbereit.xml`. The VDV service is mapped to the SIRI service code used by the subscription API.
+- `POST /` receives callbacks for the `default` SIRI profile.
+- `POST /profile/{profileId}/{version}/{path...}` receives callbacks for an explicitly selected profile/version pair. For `de-vdv` version `2`, paths follow `{producer_ref}/{VDV-service}/{action}.xml`, for example `PRODUCER-LEIPZIG/AUS/datenbereit.xml`. The VDV service is mapped to the SIRI service code used by the subscription API.
 
-`POST /consumer` receives SIRI publisher callbacks. DirectDelivery waits for per-subscription spool capacity for up to `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS`; if capacity remains exhausted, the endpoint returns HTTP 503 so the publisher can retry. While subscription termination is in progress, new DirectDelivery callbacks return HTTP 410 and do not enter the spool. A DirectDelivery callback admitted before termination is allowed to finish and no longer expires on the normal throttle timeout once termination begins. Once the SQLite subscription row has been physically deleted, later callbacks for that ref return HTTP 404. Recreating the same `subscription_ref` reopens delivery admission.
+`POST /` receives SIRI publisher callbacks. DirectDelivery waits for per-subscription spool capacity for up to `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS`; if capacity remains exhausted, the endpoint returns HTTP 503 so the publisher can retry. While subscription termination is in progress, new DirectDelivery callbacks return HTTP 410 and do not enter the spool. A DirectDelivery callback admitted before termination is allowed to finish and no longer expires on the normal throttle timeout once termination begins. Once the SQLite subscription row has been physically deleted, later callbacks for that ref return HTTP 404. Recreating the same `subscription_ref` reopens delivery admission.
 
 The exact request and response schemas are visible in Swagger UI.

@@ -9,13 +9,13 @@ The profile registry is keyed by `(profile, version)`. This allows incompatible 
 The default profile is available without an explicit profile path:
 
 ```text
-POST /consumer
+POST /
 ```
 
 Explicit profiles use:
 
 ```text
-/consumer/profile/{profileId}/{version}/{profile-specific-part}
+/profile/{profileId}/{version}/{profile-specific-part}
 ```
 
 The profile-specific part may be empty. Its syntax and meaning are owned by the selected profile. This keeps protocol-specific URL conventions out of the generic consumer routing layer.

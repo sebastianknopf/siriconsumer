@@ -74,18 +74,18 @@ async def _xml_response(
     return Response(content=payload, media_type="application/xml")
 
 
-@router.post("/consumer")
-@router.post("/consumer/")
+@router.post("")
+@router.post("/")
 async def receive_default_consumer(request: Request) -> Response:
     return await _receive_profiled(request, "default", "default", None)
 
 
-@router.post("/consumer/profile/{profile_id}/{version}")
+@router.post("/profile/{profile_id}/{version}")
 async def receive_profile_root(profile_id: str, version: str, request: Request) -> Response:
     return await _receive_profiled(request, profile_id, version, None)
 
 
-@router.post("/consumer/profile/{profile_id}/{version}/{path:path}")
+@router.post("/profile/{profile_id}/{version}/{path:path}")
 async def receive_profiled_consumer(
     profile_id: str, version: str, path: str, request: Request
 ) -> Response:

@@ -30,15 +30,15 @@ The public API always uses SIRI service names. The profile maps them internally:
 The VDV-specific part of the generic profile URL follows:
 
 ```text
-/consumer/profile/de-vdv/2/{producer_ref}/{VDV-service}/{action}.xml
+/profile/de-vdv/2/{producer_ref}/{VDV-service}/{action}.xml
 ```
 
 Examples:
 
 ```text
-POST /consumer/profile/de-vdv/2/PRODUCER/AUS/datenbereit.xml
-POST /consumer/profile/de-vdv/2/PRODUCER/AUS/clientstatus.xml
-POST /consumer/profile/de-vdv/2/PRODUCER/VIS/datenbereit.xml
+POST /profile/de-vdv/2/PRODUCER/AUS/datenbereit.xml
+POST /profile/de-vdv/2/PRODUCER/AUS/clientstatus.xml
+POST /profile/de-vdv/2/PRODUCER/VIS/datenbereit.xml
 ```
 
 The VDV service in the callback path is mapped back to the SIRI service code stored in the subscription. Multiple subscriptions may share the same `producer_ref` and service; a matching data-ready callback schedules each matching subscription.

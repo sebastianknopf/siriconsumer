@@ -10,13 +10,13 @@ This profile implements the standard SIRI common-denominator behavior used by th
 Publisher callbacks are received at:
 
 ```text
-POST /consumer
+POST /
 ```
 
 The explicit equivalent is:
 
 ```text
-POST /consumer/profile/default/default
+POST /profile/default/default
 ```
 
 ## Publisher URL

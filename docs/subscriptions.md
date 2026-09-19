@@ -28,7 +28,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER-LEIPZIG"` |
 | `subscription_ref` | Unique subscription identity inside the consumer. It is also used as the protocol subscription identifier where the selected profile maps it accordingly. | `"et-001"` |
 | `request_timestamp` | Optional request timestamp. When omitted, the profile can generate the appropriate current timestamp. | `"2026-09-18T18:30:00Z"` |
-| `consumer_address` | Optional externally reachable consumer callback URL. | `"https://consumer.example/consumer"` |
+| `consumer_address` | Optional externally reachable consumer callback URL. | `"https://consumer.example/"` |
 | `preview_interval` | Requested ISO-8601 preview interval used by profiles/services that support it. Default: `PT2H`. | `"PT2H"`, `"PT30M"` |
 | `initial_termination_time` | Optional initial subscription termination timestamp. | `"2026-09-19T22:00:00Z"` |
 | `incremental_updates` | Requests incremental updates where supported. Default: `true`. | `true`, `false` |
@@ -61,7 +61,7 @@ The following example shows a complete request body for creating a standard SIRI
   "producer_ref": "MY-PRODUCER",
   "subscription_ref": "et-001",
   "request_timestamp": "2026-09-18T18:30:00Z",
-  "consumer_address": "https://consumer.example/consumer",
+  "consumer_address": "https://consumer.example/",
   "preview_interval": "PT2H",
   "initial_termination_time": "2026-09-19T22:00:00Z",
   "incremental_updates": true,
