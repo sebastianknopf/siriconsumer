@@ -50,8 +50,10 @@ async def restart_subscription(subscription_ref: str, request: Request) -> Subsc
 
 @router.delete("/{subscription_ref}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_subscription(subscription_ref: str, request: Request) -> None:
+    force_values = request.query_params.getlist("force")
+    force = bool(force_values) and all(value == "" for value in force_values)
     try:
-        await _services(request).subscription_manager.terminate(subscription_ref)
+        await _services(request).subscription_manager.terminate(subscription_ref, force=force)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Subscription not found") from exc
     except Exception as exc:

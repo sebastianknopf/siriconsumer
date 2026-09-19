@@ -40,7 +40,7 @@ class SubscriptionManager:
         await self._activate(record)
         return await self._require(config.subscription_ref)
 
-    async def terminate(self, subscription_ref: str) -> None:
+    async def terminate(self, subscription_ref: str, *, force: bool = False) -> None:
         record = await self._require(subscription_ref)
         async with self._lock(subscription_ref):
             # Establish the local cut-off before telling the publisher to terminate.
@@ -51,15 +51,24 @@ class SubscriptionManager:
                 subscription_ref, SubscriptionStatus.TERMINATING
             )
 
-            try:
-                await self._siri_client.terminate(record)
-            except Exception as exc:
-                await self._repository.update_status(
-                    subscription_ref, SubscriptionStatus.FAILED, str(exc)
+            if force:
+                logger.warning(
+                    "Force deleting subscription without publisher termination "
+                    "subscription_ref=%s previous_status=%s previous_error=%s",
+                    subscription_ref,
+                    record.status.value,
+                    record.last_error,
                 )
+            else:
+                try:
+                    await self._siri_client.terminate(record)
+                except Exception as exc:
+                    await self._repository.update_status(
+                        subscription_ref, SubscriptionStatus.FAILED, str(exc)
+                    )
 
-                await self._delivery_admission.reopen(subscription_ref)
-                raise
+                    await self._delivery_admission.reopen(subscription_ref)
+                    raise
 
             # Any DirectDelivery request admitted before the cut-off is allowed to
             # finish. If it was throttled when termination started, its normal HTTP

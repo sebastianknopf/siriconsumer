@@ -144,3 +144,26 @@ async def test_termination_waits_for_preexisting_delivery_lease_before_delete() 
     await lease.release()
     await asyncio.wait_for(termination, timeout=0.2)
     assert repository.record is None
+
+
+@pytest.mark.asyncio
+async def test_force_termination_skips_publisher_and_deletes_subscription() -> None:
+    record = SubscriptionRecord(config=_config(), status=SubscriptionStatus.FAILED)
+    record.last_error = "producer termination failed"
+    repository = FakeRepository(record)
+    siri_client = FakeSiriClient(fail_terminate=True)
+    spool = FakeSpool()
+    sink_factory = FakeSinkFactory()
+    admission = DeliveryAdmissionController()
+    manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, admission
+    )  # type: ignore[arg-type]
+
+    await manager.terminate("sub-1", force=True)
+
+    assert repository.record is None
+    assert siri_client.terminated_refs == []
+    assert spool.empty_wait_refs == ["sub-1"]
+    assert sink_factory.removed_refs == ["sub-1"]
+    with pytest.raises(DeliveryAdmissionDeletedError):
+        await admission.acquire("sub-1")

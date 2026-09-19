@@ -151,6 +151,8 @@ After the publisher accepts termination, the consumer waits for all pre-cut-off 
 
 If publisher termination fails, the subscription remains persisted with status `failed`, inbound delivery admission is reopened, and its spool/sink state is retained so the failure is visible and recoverable.
 
+An operator can explicitly remove such a subscription locally with `DELETE /api/subscriptions/{subscription_ref}?force`. The empty `force` query flag skips the publisher termination request, but preserves the normal local safety guarantees: inbound admission is closed, deliveries admitted before the cut-off are allowed to finish, accepted spool entries are drained through the sink, the SQLite row is deleted, and the cached sink is removed. Communication logs remain untouched. Because the publisher is not contacted, it may still consider the subscription active. Supplying a value such as `?force=true` or `?force=false` does not enable force deletion.
+
 ## Concurrent Runtime Updates
 
 Subscription lifecycle state and runtime observation timestamps are persisted independently. Lifecycle transitions such as `creating`, `active`, `degraded`, `terminating`, and `failed` update only the `status` and `last_error` columns. Inbound delivery, heartbeat, and active status-check paths update only their respective timestamp columns.

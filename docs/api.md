@@ -9,7 +9,7 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 - `GET /api/profiles` lists registered communication profiles, their specification target, supported service codes, and the profile-specific `parameters` keys supported per service.
 - `GET /api/subscriptions/{subscription_ref}` returns one subscription.
 - `POST /api/subscriptions/{subscription_ref}/restart` performs terminate-then-subscribe recovery.
-- `DELETE /api/subscriptions/{subscription_ref}` closes inbound delivery admission, terminates the publisher subscription, waits for deliveries accepted before the cut-off and their spool backlog to drain through the sink, then deletes the subscription from SQLite and closes its cached sink. The endpoint returns `204 No Content` on success.
+- `DELETE /api/subscriptions/{subscription_ref}` closes inbound delivery admission, terminates the publisher subscription, waits for deliveries accepted before the cut-off and their spool backlog to drain through the sink, then deletes the subscription from SQLite and closes its cached sink. The endpoint returns `204 No Content` on success. If publisher termination cannot succeed, `DELETE /api/subscriptions/{subscription_ref}?force` performs a local force deletion without sending another publisher termination request. The empty `force` query flag must be supplied without a value; `?force=true` and `?force=false` do not enable force deletion.
 - `GET /health/live` is a process liveness endpoint.
 - `GET /health/ready` checks local persistence readiness.
 
