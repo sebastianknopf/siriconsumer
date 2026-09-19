@@ -74,7 +74,6 @@ async def _xml_response(
     return Response(content=payload, media_type="application/xml")
 
 
-@router.post("")
 @router.post("/")
 async def receive_default_consumer(request: Request) -> Response:
     return await _receive_profiled(request, "default", "default", None)
