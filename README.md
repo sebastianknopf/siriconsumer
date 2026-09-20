@@ -6,40 +6,108 @@
 
 The control API and the inbound SIRI endpoint are served by the **same FastAPI application and the same TCP port**. The default container port is `8080`.
 
-## Start with Docker
+## Quickstart
 
-Build the image:
+The published Docker image is available as `sebastianknopf/siriconsumer`. Use `latest` for the current `main` build or a release tag such as `1.0.0` for a fixed version.
+
+Create the persistent host directories first:
 
 ```bash
-docker build -t siriconsumer .
+mkdir -p state output log/siri
 ```
 
-Run it:
+The container runs as UID/GID `10001`. If the directories are not writable by that user on the host, adjust their ownership before starting the container.
+
+### Run the Published Docker Image
+
+Pull and run the latest image directly from Docker Hub:
 
 ```bash
-docker run --rm \
+docker pull sebastianknopf/siriconsumer:latest
+
+docker run --name siriconsumer \
   -p 8080:8080 \
   -v "$(pwd)/state:/app/state" \
   -v "$(pwd)/output:/app/output" \
   -v "$(pwd)/log/siri:/var/log/siri" \
-  siriconsumer
+  --restart unless-stopped \
+  sebastianknopf/siriconsumer:latest
 ```
 
-The state volume is strongly recommended for production because it contains the SQLite subscription state and the durable delivery spool. The output volume is only required when using the directory sink.
+For a fixed release, replace `latest` with a published version such as `1.0.0`.
 
-Or use Compose:
+The same setup is available through `compose.dockerhub.yaml`:
 
 ```bash
-docker compose up --build
+docker compose -f compose.dockerhub.yaml pull
+docker compose -f compose.dockerhub.yaml up -d
 ```
 
-Then open the Swagger UI:
+To run a fixed version with Compose:
+
+```bash
+SIRICONSUMER_VERSION=1.0.0 docker compose -f compose.dockerhub.yaml up -d
+```
+
+`SIRICONSUMER_VERSION` defaults to `latest`.
+
+### Build Locally from Git
+
+Clone the repository and build the image from the local source tree:
+
+```bash
+git clone https://github.com/sebastianknopf/siriconsumer.git
+cd siriconsumer
+mkdir -p state output log/siri
+
+docker build -t siriconsumer:local .
+```
+
+Run the locally built image:
+
+```bash
+docker run --name siriconsumer \
+  -p 8080:8080 \
+  -v "$(pwd)/state:/app/state" \
+  -v "$(pwd)/output:/app/output" \
+  -v "$(pwd)/log/siri:/var/log/siri" \
+  --restart unless-stopped \
+  siriconsumer:local
+```
+
+Or build and start the local checkout with the standard Compose file:
+
+```bash
+docker compose up --build -d
+```
+
+In both variants, `/app/state` contains the SQLite subscription state and durable spool, `/app/output` is available to directory sinks, and `/var/log/siri` contains optional per-subscription communication logs. The Compose files mount these paths to `./state`, `./output`, and `./log/siri`.
+
+After startup, open the Swagger UI at:
 
 ```text
 http://localhost:8080/api/swagger
 ```
 
-Communication XML logging is disabled by default and can be enabled per subscription with `"logging": true`. Logged XML is written below `/var/log/siri/{subscription_ref}/`; Compose mounts this to `./log/siri` by default. The log files are deliberately retained when a subscription is deleted and are never cleaned up automatically by the application. See [`docs/communication-logging.md`](docs/communication-logging.md).
+Communication XML logging is disabled by default and can be enabled per subscription with `"logging": true`. Logged XML is written below `/var/log/siri/{subscription_ref}/`. The files deliberately survive subscription deletion and are never cleaned up automatically by the application. See [`docs/communication-logging.md`](docs/communication-logging.md).
+
+## Docker Image Publishing
+
+Two GitHub Actions publish `sebastianknopf/siriconsumer` to Docker Hub:
+
+- `.github/workflows/docker-latest.yml` runs whenever `main` is updated, including after a pull request is merged, and publishes `sebastianknopf/siriconsumer:latest`.
+- `.github/workflows/docker-release.yml` runs for pushed `1.x.x` Git tags and publishes the exact tag, for example `sebastianknopf/siriconsumer:1.2.3`.
+
+Configure a Docker Hub access token as the GitHub repository secret `DOCKERHUB_TOKEN`. The workflows authenticate as the Docker Hub user `sebastianknopf`.
+
+To publish a versioned image, create and push a matching Git tag:
+
+```bash
+git tag 1.0.0
+git push origin 1.0.0
+```
+
+The Docker build keeps the Git metadata available because the Python package version is derived from Git tags through `setuptools_scm`.
 
 ## Local Development
 
