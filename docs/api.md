@@ -1,3 +1,9 @@
+## Status Page
+
+`GET /status` serves a lightweight Material Design-inspired HTML overview of the running consumer and all persisted subscriptions. The subscription table shows the subscription ID, profile, version, configured termination time, lifecycle status, last data receipt, last heartbeat, and current spool size.
+
+The displayed spool size is the sum of the actual `.payload` files currently belonging to the subscription. Spool metadata files are deliberately excluded. The page refreshes automatically every 15 seconds and does not require JavaScript or external UI assets.
+
 # Control API
 
 Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at `/api/swagger/openapi.json`.

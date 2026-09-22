@@ -89,6 +89,10 @@ After startup, open the Swagger UI at:
 http://localhost:8080/api/swagger
 ```
 
+The runtime status overview is available at `http://localhost:8080/status`. It shows consumer health and per-subscription lifecycle, heartbeat, last-message, and payload-only spool information.
+
+
+
 Communication XML logging is disabled by default and can be enabled per subscription with `"logging": true`. Logged XML is written below `/var/log/siri/{subscription_ref}/`. The files deliberately survive subscription deletion and are never cleaned up automatically by the application. See [`docs/communication-logging.md`](docs/communication-logging.md).
 
 ## Docker Image Publishing

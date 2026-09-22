@@ -200,6 +200,21 @@ class FileDurableSpool:
 
         return len(queue) if queue is not None else 0
 
+    def payload_size_bytes(self, subscription_ref: str) -> int:
+        """Return the current payload byte size without counting spool metadata files."""
+        queue = self._index.get(subscription_ref)
+        if queue is None:
+            return 0
+
+        total = 0
+        for entry in queue:
+            try:
+                total += entry.payload_path.stat().st_size
+            except FileNotFoundError:
+                continue
+
+        return total
+
     def _has_capacity_locked(self, subscription_ref: str) -> bool:
         queue = self._index.get(subscription_ref)
         if not queue:

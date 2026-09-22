@@ -9,6 +9,7 @@ from siriconsumer.api.control import router as control_router
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.api.health import router as health_router
 from siriconsumer.api.profiles import router as profiles_router
+from siriconsumer.api.status import router as status_router
 from siriconsumer.api.consumer import router as consumer_router
 from siriconsumer.config import Settings
 from siriconsumer.infrastructure.file_spool import FileDurableSpool
@@ -125,6 +126,7 @@ app.include_router(control_router)
 app.include_router(profiles_router)
 app.include_router(consumer_router)
 app.include_router(health_router)
+app.include_router(status_router)
 
 
 def run() -> None:
