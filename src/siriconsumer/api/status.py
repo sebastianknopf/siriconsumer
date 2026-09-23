@@ -49,12 +49,15 @@ async def status_page(request: Request) -> HTMLResponse:
 
     rows: list[str] = []
     total_spool_bytes = 0
+    total_spool_files = 0
     active_count = 0
 
     for record in records:
         config = record.config
         spool_bytes = services.spool.payload_size_bytes(config.subscription_ref)
+        spool_files = services.spool.pending_count(config.subscription_ref)
         total_spool_bytes += spool_bytes
+        total_spool_files += spool_files
         if record.status.value.lower() == "active":
             active_count += 1
 
@@ -73,7 +76,7 @@ async def status_page(request: Request) -> HTMLResponse:
         )
 
     table_body = "".join(rows) if rows else (
-        '<tr><td class="empty" colspan="8">No subscriptions configured.</td></tr>'
+        '<tr><td class="empty" colspan="8">No Subscriptions Configured.</td></tr>'
     )
 
     html = f"""<!doctype html>
@@ -81,13 +84,13 @@ async def status_page(request: Request) -> HTMLResponse:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="15">
+  <meta http-equiv="refresh" content="5">
   <title>SIRI Consumer Status</title>
   <style>
     :root {{
       color-scheme: light dark;
-      --md-primary: #6750a4; --md-on-primary: #fff; --md-surface: #fffbfe;
-      --md-container: #f3edf7; --md-on-surface: #1d1b20; --md-outline: #79747e;
+      --md-primary: #6750a4; --md-on-primary: #fff; --md-surface: #fbfcf8;
+      --md-container: #f3edf7; --md-on-surface: #1b1d1a; --md-outline: #747970;
       --md-ok: #146c2e; --md-ok-bg: #c4eed0; --md-warn: #7a5900; --md-warn-bg: #ffdea6;
       --md-error: #ba1a1a; --md-error-bg: #ffdad6; --md-progress: #415f91; --md-progress-bg: #d6e3ff;
     }}
@@ -125,20 +128,20 @@ async def status_page(request: Request) -> HTMLResponse:
   </style>
 </head>
 <body>
-  <header><h1>SIRI Consumer</h1><p>Status overview · version {escape(__version__)}</p></header>
+  <header><h1>SIRI Consumer</h1><p>Version {escape(__version__)}</p></header>
   <main>
-    <section class="summary" aria-label="Consumer status">
+    <section class="summary" aria-label="Consumer Status">
       <div class="card"><div class="label">Consumer</div><div class="value">Running</div></div>
       <div class="card"><div class="label">Subscriptions</div><div class="value">{len(records)}</div></div>
       <div class="card"><div class="label">Active</div><div class="value">{active_count}</div></div>
-      <div class="card"><div class="label">Spool payload</div><div class="value">{escape(_format_bytes(total_spool_bytes))}</div></div>
+      <div class="card"><div class="label">Spool Payload</div><div class="value">{escape(_format_bytes(total_spool_bytes))} / {total_spool_files}</div></div>
     </section>
     <section><h2>Subscriptions</h2><div class="table-wrap"><table>
-      <thead><tr><th>ID</th><th>Profile</th><th>Version</th><th>Termination time</th><th>Status</th>
-      <th>Last data received</th><th>Last heartbeat</th><th class="numeric">Spool size</th></tr></thead>
+      <thead><tr><th>ID</th><th>Profile</th><th>Version</th><th>Termination Time</th><th>Status</th>
+      <th>Last Data Received</th><th>Last Heartbeat</th><th class="numeric">Spool Size</th></tr></thead>
       <tbody>{table_body}</tbody>
     </table></div>
-    <footer>Spool size counts payload bytes only, excluding metadata. Page refreshes every 15 seconds.</footer>
+    <footer>Spool Size shows payload bytes / data files only, excluding metadata. Page refreshes every 5 seconds.</footer>
     </section>
   </main>
 </body>

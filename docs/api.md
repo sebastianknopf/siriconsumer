@@ -1,8 +1,8 @@
-## Status Page
+## Status page
 
-`GET /status` serves a lightweight Material Design-inspired HTML overview of the running consumer and all persisted subscriptions. The subscription table shows the subscription ID, profile, version, configured termination time, lifecycle status, last data receipt, last heartbeat, and current spool size.
+`GET /status` serves a lightweight Material Design-inspired HTML overview of the running consumer and all persisted subscriptions. The subscription table shows the subscription ID, profile, version, configured termination time, lifecycle status, last data receipt, last heartbeat, and current spool size and data-file count.
 
-The displayed spool size is the sum of the actual `.payload` files currently belonging to the subscription. Spool metadata files are deliberately excluded. The page refreshes automatically every 15 seconds and does not require JavaScript or external UI assets.
+The displayed spool value is formatted as `[payload size] / [data-file count]`. Both values refer only to actual `.payload` files currently belonging to the subscription; spool metadata files are deliberately excluded. The page refreshes automatically every 5 seconds and does not require JavaScript or external UI assets.
 
 # Control API
 

@@ -36,6 +36,10 @@ class SpoolStub:
         assert subscription_ref == "sub-1"
         return 1536
 
+    def pending_count(self, subscription_ref: str) -> int:
+        assert subscription_ref == "sub-1"
+        return 3
+
 
 def test_status_page_contains_subscription_and_payload_only_spool_size() -> None:
     app = FastAPI()
@@ -45,5 +49,9 @@ def test_status_page_contains_subscription_and_payload_only_spool_size() -> None
     assert response.status_code == 200
     assert "sub-1" in response.text
     assert "default" in response.text
-    assert "1.5 KiB" in response.text
-    assert "Spool size counts payload bytes only" in response.text
+    assert "1.5 KiB / 3" in response.text
+    assert "Spool Size shows payload bytes / data files only" in response.text
+    assert 'content="5"' in response.text
+    assert "Status overview" not in response.text
+    assert "Version " in response.text
+    assert "Last Data Received" in response.text
