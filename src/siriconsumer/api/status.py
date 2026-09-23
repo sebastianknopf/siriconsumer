@@ -89,11 +89,11 @@ async def status_page(request: Request) -> HTMLResponse:
   <style>
     :root {{
       color-scheme: light dark;
-      --md-primary: #3f5f4b;
-      --md-secondary: #dce8c9; --md-on-primary: #fff; --md-surface: #fbfcf8;
+      --md-primary: #008c99;
+      --md-secondary: #99cc04; --md-on-primary: #fff; --md-surface: #fbfcf8;
       --md-container: #f0f4eb; --md-on-surface: #1b1d1a; --md-outline: #747970;
       --md-ok: #146c2e; --md-ok-bg: #c4eed0; --md-warn: #7a5900; --md-warn-bg: #ffdea6;
-      --md-error: #ba1a1a; --md-error-bg: #ffdad6; --md-progress: #3f5f4b; --md-progress-bg: #dce8c9;
+      --md-error: #ba1a1a; --md-error-bg: #ffdad6; --md-progress: #008c99; --md-progress-bg: #99cc04;
     }}
     * {{ box-sizing: border-box; }}
     body {{ margin:0; background:var(--md-surface); color:var(--md-on-surface);
