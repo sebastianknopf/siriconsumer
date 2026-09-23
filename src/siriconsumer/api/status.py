@@ -71,7 +71,7 @@ async def status_page(request: Request) -> HTMLResponse:
             f"{escape(record.status.value)}</span></td>"
             f"<td>{escape(_format_datetime(record.last_message_at))}</td>"
             f"<td>{escape(_format_datetime(record.last_heartbeat_at))}</td>"
-            f'<td class="numeric" title="{spool_bytes} bytes">{escape(_format_bytes(spool_bytes))}</td>'
+            f'<td class="numeric" title="{spool_bytes} / {spool_files}">{escape(_format_bytes(spool_bytes))} / {spool_files}</td>'
             "</tr>"
         )
 
@@ -89,10 +89,10 @@ async def status_page(request: Request) -> HTMLResponse:
   <style>
     :root {{
       color-scheme: light dark;
-      --md-primary: #6750a4; --md-on-primary: #fff; --md-surface: #fbfcf8;
-      --md-container: #f3edf7; --md-on-surface: #1b1d1a; --md-outline: #747970;
+      --md-primary: #173d2b; --md-on-primary: #fff; --md-surface: #fbfcf8;
+      --md-container: #f0f4eb; --md-on-surface: #1b1d1a; --md-outline: #747970;
       --md-ok: #146c2e; --md-ok-bg: #c4eed0; --md-warn: #7a5900; --md-warn-bg: #ffdea6;
-      --md-error: #ba1a1a; --md-error-bg: #ffdad6; --md-progress: #415f91; --md-progress-bg: #d6e3ff;
+      --md-error: #ba1a1a; --md-error-bg: #ffdad6; --md-progress: #315b45; --md-progress-bg: #dce9c8;
     }}
     * {{ box-sizing: border-box; }}
     body {{ margin:0; background:var(--md-surface); color:var(--md-on-surface);
