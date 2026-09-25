@@ -161,3 +161,33 @@ async def test_vdv_profile_uses_action_specific_publisher_urls() -> None:
         "/vdv/aus/datenabrufen.xml",
         "/vdv/aus/aboverwalten.xml",
     ]
+
+
+@pytest.mark.asyncio
+async def test_missing_mtls_file_fails_before_outbound_request(tmp_path) -> None:
+    from siriconsumer.domain.exceptions import MtlsCertificateFileError
+
+    subscription = SubscriptionRecord(
+        config=SubscriptionCreate.model_validate(
+            {
+                "provider_url": "https://publisher.example/siri",
+                "service": "VM",
+                "delivery_mode": "direct",
+                "requestor_ref": "consumer",
+                "subscriber_ref": "consumer",
+                "subscription_ref": "sub-mtls-missing",
+                "mtls": {
+                    "cert_filename": str(tmp_path / "missing.crt"),
+                    "key_filename": str(tmp_path / "missing.key"),
+                },
+                "sink": {"type": "directory", "path": "/tmp/siri"},
+            }
+        )
+    )
+
+    client = SiriHttpClient()
+    try:
+        with pytest.raises(MtlsCertificateFileError, match="Configured mTLS file"):
+            await client.subscribe(subscription)
+    finally:
+        await client.close()

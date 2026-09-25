@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pytest
 
 from siriconsumer.domain.enums import SubscriptionStatus
-from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
+from siriconsumer.domain.models import MtlsConfig, SubscriptionCreate, SubscriptionRecord
 from siriconsumer.interfaces.intf_delivery_admission import (
     DeliveryAdmissionClosedError,
     DeliveryAdmissionDeletedError,
@@ -167,3 +167,34 @@ async def test_force_termination_skips_publisher_and_deletes_subscription() -> N
     assert sink_factory.removed_refs == ["sub-1"]
     with pytest.raises(DeliveryAdmissionDeletedError):
         await admission.acquire("sub-1")
+
+
+@pytest.mark.asyncio
+async def test_missing_mtls_files_mark_subscription_failed(tmp_path) -> None:
+    from siriconsumer.infrastructure.siri_http_client import SiriHttpClient
+
+    config = _config("sub-mtls-missing")
+    config.mtls = MtlsConfig(
+        cert_filename=str(tmp_path / "missing.crt"),
+        key_filename=str(tmp_path / "missing.key"),
+    )
+    record = SubscriptionRecord(config=config, status=SubscriptionStatus.CREATING)
+    repository = FakeRepository(record)
+    siri_client = SiriHttpClient()
+    manager = SubscriptionManager(
+        repository,
+        siri_client,
+        FakeSpool(),
+        FakeSinkFactory(),
+        DeliveryAdmissionController(),
+    )  # type: ignore[arg-type]
+
+    try:
+        with pytest.raises(RuntimeError, match="Configured mTLS file"):
+            await manager._activate(record)
+    finally:
+        await siri_client.close()
+
+    assert repository.record is not None
+    assert repository.record.status is SubscriptionStatus.FAILED
+    assert "Configured mTLS file" in (repository.record.last_error or "")

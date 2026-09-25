@@ -36,3 +36,29 @@ def test_subscription_model_supports_filters_and_mqtt_sink() -> None:
     assert model.heartbeat.interval == "PT45S"
     assert model.heartbeat.check_status_enabled is False
     assert model.sink.type == "mqtt"
+
+
+def test_mtls_requires_both_certificate_and_key_filenames() -> None:
+    base = {
+        "provider_url": "https://publisher.example/siri",
+        "service": "VM",
+        "delivery_mode": "direct",
+        "requestor_ref": "consumer",
+        "subscriber_ref": "consumer",
+        "subscription_ref": "sub-mtls",
+        "sink": {"type": "directory", "path": "/tmp/output"},
+    }
+
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        SubscriptionCreate.model_validate({**base, "mtls": {"cert_filename": "/certs/client.crt"}})
+
+    with pytest.raises(ValidationError):
+        SubscriptionCreate.model_validate({**base, "mtls": {"key_filename": "/certs/client.key"}})
+
+    with pytest.raises(ValidationError):
+        SubscriptionCreate.model_validate(
+            {**base, "mtls": {"cert_filename": "", "key_filename": "/certs/client.key"}}
+        )
