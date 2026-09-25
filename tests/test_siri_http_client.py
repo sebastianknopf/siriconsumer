@@ -191,3 +191,54 @@ async def test_missing_mtls_file_fails_before_outbound_request(tmp_path) -> None
             await client.subscribe(subscription)
     finally:
         await client.close()
+
+@pytest.mark.asyncio
+async def test_http_endpoint_disables_server_certificate_verification_with_mtls(monkeypatch) -> None:
+    import ssl
+
+    captured_verify: list[ssl.SSLContext | bool] = []
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout: float, verify: ssl.SSLContext | bool) -> None:
+            captured_verify.append(verify)
+
+        async def __aenter__(self) -> "FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        async def post(self, endpoint: str, *, content: bytes, headers: dict[str, str]) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=b'<Siri xmlns="http://www.siri.org.uk/siri"><Status>true</Status></Siri>',
+            )
+
+    subscription = SubscriptionRecord(
+        config=SubscriptionCreate.model_validate(
+            {
+                "provider_url": "http://publisher.example/siri",
+                "service": "VM",
+                "delivery_mode": "direct",
+                "requestor_ref": "consumer",
+                "subscriber_ref": "consumer",
+                "subscription_ref": "sub-http-mtls",
+                "mtls": {
+                    "cert_filename": "/certs/client.crt",
+                    "key_filename": "/certs/client.key",
+                },
+                "sink": {"type": "directory", "path": "/tmp/siri"},
+            }
+        )
+    )
+
+    client = SiriHttpClient()
+    monkeypatch.setattr(client, "_mtls_context", lambda _: ssl.create_default_context())
+    monkeypatch.setattr("siriconsumer.infrastructure.siri_http_client.httpx.AsyncClient", FakeAsyncClient)
+
+    try:
+        await client.subscribe(subscription)
+    finally:
+        await client.close()
+
+    assert captured_verify == [False]

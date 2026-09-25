@@ -50,7 +50,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 
 `mtls` applies only to HTTP requests sent by the consumer to the producer for the specific subscription. Both `cert_filename` and `key_filename` are mandatory when the `mtls` object is supplied; incomplete or empty configuration is rejected by the API before the subscription is created.
 
-The configured paths are container-local file paths. If either file does not exist when an outbound producer request is attempted, that request fails and the subscription is moved to `failed`. HTTPS uses the normal system trust store to verify the producer server certificate. Plain HTTP has no TLS server certificate to verify. Client certificates can only participate in a TLS handshake, so mTLS requires an HTTPS producer endpoint.
+The configured paths are container-local file paths. If either file does not exist when an outbound producer request is attempted, that request fails and the subscription is moved to `failed`. For HTTPS producer endpoints, the normal system trust store verifies the producer server certificate. For HTTP producer endpoints, server-certificate verification is disabled because no TLS handshake and therefore no server certificate exists. This HTTP behavior is independent of whether `mtls` is configured. Client certificates can only be transmitted as part of a TLS handshake, so configured mTLS credentials are only presented to the producer when the resolved outbound endpoint uses HTTPS.
 
 Inbound TLS and client-certificate validation are deliberately not handled by SIRI Consumer. Deployments that require inbound TLS or mTLS should terminate and validate it at the reverse proxy in front of the consumer.
 

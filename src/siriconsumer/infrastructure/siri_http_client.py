@@ -99,9 +99,12 @@ class SiriHttpClient:
             response = await self._client.post(endpoint, content=payload, headers=headers)
         else:
             ssl_context = self._mtls_context(subscription)
+            verify: ssl.SSLContext | bool = (
+                ssl_context if httpx.URL(endpoint).scheme == "https" else False
+            )
             async with httpx.AsyncClient(
                 timeout=self._timeout_seconds,
-                verify=ssl_context,
+                verify=verify,
             ) as client:
                 response = await client.post(endpoint, content=payload, headers=headers)
         if self._communication_logger is not None:
