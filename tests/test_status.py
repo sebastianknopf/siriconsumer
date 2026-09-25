@@ -21,6 +21,8 @@ class RepositoryStub:
             "subscriber_ref": "consumer",
             "subscription_ref": "sub-1",
             "initial_termination_time": "2026-09-22T10:00:00Z",
+            "logging": True,
+            "mtls": {"cert_filename": "/tmp/client.crt", "key_filename": "/tmp/client.key"},
             "sink": {"type": "directory", "path": "/tmp/out"},
         })
         return [SubscriptionRecord(
@@ -55,3 +57,10 @@ def test_status_page_contains_subscription_and_payload_only_spool_size() -> None
     assert "Status overview" not in response.text
     assert "Version " in response.text
     assert "Last Data Received" in response.text
+    assert "<th>mTLS</th>" in response.text
+    assert ">Yes</td>" in response.text
+    assert "<th>Logging</th>" in response.text
+    assert ">Active</td>" in response.text
+    assert "<th>Actions</th>" in response.text
+    assert "download-logs" in response.text
+    assert "clear-logs" in response.text

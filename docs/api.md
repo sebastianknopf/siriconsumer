@@ -25,3 +25,12 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 `POST /` receives SIRI publisher callbacks. DirectDelivery waits for per-subscription spool capacity for up to `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS`; if capacity remains exhausted, the endpoint returns HTTP 503 so the publisher can retry. While subscription termination is in progress, new DirectDelivery callbacks return HTTP 410 and do not enter the spool. A DirectDelivery callback admitted before termination is allowed to finish and no longer expires on the normal throttle timeout once termination begins. Once the SQLite subscription row has been physically deleted, later callbacks for that ref return HTTP 404. Recreating the same `subscription_ref` reopens delivery admission.
 
 The exact request and response schemas are visible in Swagger UI.
+
+### Subscription Communication Logs
+
+The status page exposes log actions for each subscription:
+
+- `GET /api/subscriptions/{subscription_ref}/logs/download` downloads all currently stored communication logs for the subscription as a ZIP archive.
+- `DELETE /api/subscriptions/{subscription_ref}/logs` clears all currently stored communication logs for the subscription.
+
+Both endpoints require the subscription to exist. Log files are read from the fixed communication log root `/var/log/siri`. Clearing logs does not change the subscription's `logging` configuration and does not affect subscription state.
