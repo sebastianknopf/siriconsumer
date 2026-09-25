@@ -83,6 +83,17 @@ SinkConfig = Annotated[
 ]
 
 
+class MtlsConfig(BaseModel):
+    cert_filename: str = Field(
+        min_length=1,
+        description="Client certificate file used for outbound producer requests.",
+    )
+    key_filename: str = Field(
+        min_length=1,
+        description="Private key file used for outbound producer requests.",
+    )
+
+
 class CommunicationProfileInfo(BaseModel):
     profile: str
     version: str
@@ -125,6 +136,10 @@ class SubscriptionCreate(BaseModel):
     incremental_updates: bool = True
     change_before_updates: str = Field(default="PT30S")
     headers: dict[str, str] = Field(default_factory=dict)
+    mtls: MtlsConfig | None = Field(
+        default=None,
+        description="Optional client certificate and key for outbound producer requests only.",
+    )
     logging: bool = Field(
         default=False,
         description="Persist pretty-printed XML communication for this subscription.",

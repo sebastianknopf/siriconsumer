@@ -5,6 +5,8 @@ import logging
 from datetime import datetime, timezone
 
 from siriconsumer.config import Settings
+from siriconsumer.domain.enums import SubscriptionStatus
+from siriconsumer.domain.exceptions import MtlsCertificateFileError
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 from siriconsumer.services.subscription_manager import SubscriptionManager
@@ -91,6 +93,17 @@ class ProviderMonitor:
                     continue
                 try:
                     status = await self._siri_client.check_status(record)
+                except MtlsCertificateFileError as exc:
+                    await self._repository.update_status(
+                        record.config.subscription_ref, SubscriptionStatus.FAILED, str(exc)
+                    )
+                    logger.error(
+                        "Publisher status check failed because mTLS files are unavailable "
+                        "provider=%s subscription_ref=%s",
+                        provider_url,
+                        record.config.subscription_ref,
+                    )
+                    continue
                 except Exception:
                     logger.warning(
                         "Active publisher status check failed provider=%s subscription_ref=%s",

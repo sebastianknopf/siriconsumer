@@ -34,6 +34,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `incremental_updates` | Requests incremental updates where supported. Default: `true`. | `true`, `false` |
 | `change_before_updates` | ISO-8601 change-before interval used by profiles/services that support it. Default: `PT30S`. | `"PT30S"`, `"PT1M"` |
 | `headers` | Arbitrary HTTP headers added to outbound requests for this subscription. | `{"Authorization": "Bearer ...", "X-Tenant": "dv"}` |
+| `mtls` | Optional mTLS client credentials for outbound requests to this subscription's producer. When present, both `cert_filename` and `key_filename` are required. Paths refer to files inside the consumer container. Inbound TLS/mTLS is intentionally outside the consumer and should be terminated by a reverse proxy. | `{"cert_filename": "/app/certs/client.crt", "key_filename": "/app/certs/client.key"}` |
 | `logging` | Enables persistent pretty-printed XML communication logging for this subscription. Default: `false`. Logs are not automatically deleted when the subscription is deleted. | `false`, `true` |
 | `parameters` | Generic object containing profile-specific parameters. The supported keys and their semantics are documented by each profile. | `{"visId": "VIS-AREA-1"}` |
 | `filters.lines` | Optional list of line references used as subscription filters where supported. | `["10", "11"]` |
@@ -44,6 +45,14 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `heartbeat.timeout_seconds` | Number of seconds without an expected heartbeat before recovery logic may be triggered. Default: `180`. | `180`, `300` |
 | `heartbeat.check_status_enabled` | Enables active status checks independently of heartbeat reception. Default: `true`. | `true`, `false` |
 | `sink` | Sink configuration used for delivered payloads. Its structure depends on the selected sink type; see [Sinks](sinks.md). | `{"type": "directory", "path": "/data/incoming"}` |
+
+### Outbound mTLS
+
+`mtls` applies only to HTTP requests sent by the consumer to the producer for the specific subscription. Both `cert_filename` and `key_filename` are mandatory when the `mtls` object is supplied; incomplete or empty configuration is rejected by the API before the subscription is created.
+
+The configured paths are container-local file paths. If either file does not exist when an outbound producer request is attempted, that request fails and the subscription is moved to `failed`. HTTPS uses the normal system trust store to verify the producer server certificate. Plain HTTP has no TLS server certificate to verify. Client certificates can only participate in a TLS handshake, so mTLS requires an HTTPS producer endpoint.
+
+Inbound TLS and client-certificate validation are deliberately not handled by SIRI Consumer. Deployments that require inbound TLS or mTLS should terminate and validate it at the reverse proxy in front of the consumer.
 
 ### Complete Create Example
 
@@ -69,6 +78,10 @@ The following example shows a complete request body for creating a standard SIRI
   "headers": {
     "Authorization": "Bearer example-token",
     "X-Tenant": "dv"
+  },
+  "mtls": {
+    "cert_filename": "/app/certs/producer-a/client.crt",
+    "key_filename": "/app/certs/producer-a/client.key"
   },
   "logging": true,
   "parameters": {},

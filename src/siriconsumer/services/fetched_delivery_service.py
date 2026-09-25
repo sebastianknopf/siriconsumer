@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from siriconsumer.domain.enums import SubscriptionStatus
+from siriconsumer.domain.exceptions import MtlsCertificateFileError
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 from siriconsumer.profiles.registry import ProfileRegistry
@@ -85,6 +87,16 @@ class FetchedDeliveryService:
                     more_data_requests += 1
             except asyncio.CancelledError:
                 raise
+            except MtlsCertificateFileError as exc:
+                await self._repository.update_status(
+                    subscription_ref, SubscriptionStatus.FAILED, str(exc)
+                )
+                logger.error(
+                    "Fetched delivery failed because mTLS files are unavailable "
+                    "worker=%s subscription_ref=%s",
+                    worker_id,
+                    subscription_ref,
+                )
             except Exception:
                 logger.exception(
                     "Fetched delivery failed worker=%s subscription_ref=%s",

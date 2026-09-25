@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import ssl
+from pathlib import Path
+
 import httpx
 
+from siriconsumer.domain.exceptions import MtlsCertificateFileError
 from siriconsumer.domain.models import SubscriptionRecord
 from siriconsumer.interfaces.intf_communication_logger import CommunicationLogger
 from siriconsumer.interfaces.intf_profile import CommunicationProfile, PublisherAction
@@ -17,6 +21,7 @@ class SiriHttpClient:
         communication_logger: CommunicationLogger | None = None,
         profile_registry: ProfileRegistry | None = None,
     ) -> None:
+        self._timeout_seconds = timeout_seconds
         self._client = httpx.AsyncClient(timeout=timeout_seconds)
         self._communication_logger = communication_logger
         self._profile_registry = profile_registry or ProfileRegistry()
@@ -89,13 +94,44 @@ class SiriHttpClient:
                 subscription, direction="OUT", kind="Request", payload=payload
             )
 
-        response = await self._client.post(endpoint, content=payload, headers=headers)
+        mtls = subscription.config.mtls
+        if mtls is None:
+            response = await self._client.post(endpoint, content=payload, headers=headers)
+        else:
+            ssl_context = self._mtls_context(subscription)
+            async with httpx.AsyncClient(
+                timeout=self._timeout_seconds,
+                verify=ssl_context,
+            ) as client:
+                response = await client.post(endpoint, content=payload, headers=headers)
         if self._communication_logger is not None:
             await self._communication_logger.write(
                 subscription, direction="OUT", kind="Response", payload=response.content
             )
 
         return response
+
+    @staticmethod
+    def _mtls_context(subscription: SubscriptionRecord) -> ssl.SSLContext:
+        mtls = subscription.config.mtls
+        if mtls is None:
+            raise RuntimeError("mTLS context requested without mTLS configuration")
+
+        cert_file = Path(mtls.cert_filename)
+        key_file = Path(mtls.key_filename)
+        missing = [str(path) for path in (cert_file, key_file) if not path.is_file()]
+        if missing:
+            raise MtlsCertificateFileError(
+                "Configured mTLS file does not exist or is not a regular file: "
+                + ", ".join(missing)
+            )
+
+        # HTTPS uses the normal system trust store and verifies the producer certificate.
+        # For plain HTTP no TLS handshake takes place, so server certificate verification
+        # is naturally not applicable.
+        context = ssl.create_default_context()
+        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+        return context
 
     def _profile(self, subscription: SubscriptionRecord) -> CommunicationProfile:
         return self._profile_registry.get(subscription.config.profile, subscription.config.version)
