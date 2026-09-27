@@ -52,13 +52,18 @@ class SubscriptionManager:
             )
 
             if force:
-                logger.warning(
-                    "Force deleting subscription without publisher termination "
-                    "subscription_ref=%s previous_status=%s previous_error=%s",
-                    subscription_ref,
-                    record.status.value,
-                    record.last_error,
-                )
+                try:
+                    await self._siri_client.terminate(record)
+                except Exception:
+                    logger.warning(
+                        "Publisher termination failed during force termination; "
+                        "continuing with local drain and deletion subscription_ref=%s "
+                        "previous_status=%s previous_error=%s",
+                        subscription_ref,
+                        record.status.value,
+                        record.last_error,
+                        exc_info=True,
+                    )
             else:
                 try:
                     await self._siri_client.terminate(record)
