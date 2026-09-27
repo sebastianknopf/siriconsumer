@@ -130,7 +130,7 @@ async def test_vdv_profile_uses_action_specific_publisher_urls() -> None:
             {
                 "provider_url": "https://publisher.example/vdv/aus",
                 "profile": "de-vdv",
-            "version": "2",
+                "version": "2",
                 "service": "ET",
                 "delivery_mode": "fetched",
                 "requestor_ref": "consumer",
@@ -192,6 +192,7 @@ async def test_missing_mtls_file_fails_before_outbound_request(tmp_path) -> None
     finally:
         await client.close()
 
+
 @pytest.mark.asyncio
 async def test_http_endpoint_disables_server_certificate_verification_with_mtls(monkeypatch) -> None:
     import ssl
@@ -209,8 +210,15 @@ async def test_http_endpoint_disables_server_certificate_verification_with_mtls(
             return None
 
         async def post(self, endpoint: str, *, content: bytes, headers: dict[str, str]) -> httpx.Response:
+            request = httpx.Request(
+                "POST",
+                endpoint,
+                content=content,
+                headers=headers,
+            )
             return httpx.Response(
                 200,
+                request=request,
                 content=b'<Siri xmlns="http://www.siri.org.uk/siri"><Status>true</Status></Siri>',
             )
 
