@@ -40,7 +40,9 @@ class SubscriptionManager:
         await self._activate(record)
         return await self._require(config.subscription_ref)
 
-    async def terminate(self, subscription_ref: str, *, force: bool = False) -> None:
+    async def terminate(
+        self, subscription_ref: str, *, force: bool = False, spool: bool = True
+    ) -> None:
         record = await self._require(subscription_ref)
         async with self._lock(subscription_ref):
             # Establish the local cut-off before telling the publisher to terminate.
@@ -80,10 +82,21 @@ class SubscriptionManager:
             # throttle timeout is disabled so it can persist as the sink drains.
             await self._delivery_admission.wait_until_drained(subscription_ref)
 
-            # No new inbound DirectDelivery can enter the spool now. Drain every
-            # message already accepted for this subscription through the configured
-            # sink, including bounded retries, before deleting durable state.
-            await self._spool.wait_until_empty(subscription_ref)
+            # No new inbound DirectDelivery can enter the spool now. By default,
+            # drain every accepted message through the configured sink. When spool
+            # processing is disabled for termination, discard entries that are not
+            # already owned by a sink worker and let the in-flight entry finish.
+            if spool:
+                await self._spool.wait_until_empty(subscription_ref)
+            else:
+                purged = await self._spool.purge(subscription_ref)
+                await self._spool.wait_until_idle(subscription_ref)
+                logger.info(
+                    "Discarded pending spool entries during termination "
+                    "subscription_ref=%s purged=%s",
+                    subscription_ref,
+                    purged,
+                )
 
             await self._repository.delete(subscription_ref)
             # The temporary 410 termination window ends exactly when durable
@@ -101,8 +114,9 @@ class SubscriptionManager:
                 )
 
             logger.info(
-                "Subscription terminated, drained, and deleted subscription_ref=%s",
+                "Subscription terminated and deleted subscription_ref=%s spool=%s",
                 subscription_ref,
+                spool,
             )
 
     async def recover(self, subscription_ref: str) -> SubscriptionRecord:
