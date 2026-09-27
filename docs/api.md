@@ -2,7 +2,7 @@
 
 `GET /status` serves a lightweight Material Design-inspired HTML overview of the running consumer and all persisted subscriptions. The subscription table shows the subscription ID, profile, version, configured termination time, lifecycle status, last data receipt, last heartbeat, and current spool size and data-file count.
 
-The displayed spool value is formatted as `[payload size] / [data-file count]`. Both values refer only to actual `.payload` files currently belonging to the subscription; spool metadata files are deliberately excluded. The page refreshes automatically every 5 seconds and does not require JavaScript or external UI assets.
+The displayed spool value is formatted as `[payload size] / [data-file count]`. Both values refer only to actual `.payload` files currently belonging to the subscription; spool metadata files are deliberately excluded. The page refreshes only when the operator uses the Refresh button and does not require external UI assets.
 
 # Control API
 
@@ -15,7 +15,7 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 - `GET /api/profiles` lists registered communication profiles, their specification target, supported service codes, and the profile-specific `parameters` keys supported per service.
 - `GET /api/subscriptions/{subscription_ref}` returns one subscription.
 - `POST /api/subscriptions/{subscription_ref}/restart` performs terminate-then-subscribe recovery.
-- `DELETE /api/subscriptions/{subscription_ref}` closes inbound delivery admission, terminates the publisher subscription, waits for deliveries accepted before the cut-off and their spool backlog to drain through the sink, then deletes the subscription from SQLite and closes its cached sink. The endpoint returns `204 No Content` on success. With `DELETE /api/subscriptions/{subscription_ref}?force`, the consumer still sends the profile-specific publisher termination request, but ignores any failure or negative/unexpected termination response and continues with the local drain and deletion. The empty `force` query flag must be supplied without a value; `?force=true` and `?force=false` do not enable force deletion.
+- `DELETE /api/subscriptions/{subscription_ref}` closes inbound delivery admission, terminates the publisher subscription, waits for deliveries accepted before the cut-off and their spool backlog to drain through the sink, then deletes the subscription from SQLite and closes its cached sink. The endpoint returns `204 No Content` on success. The optional `spool` query parameter defaults to `true`. With `spool=false`, deliveries admitted before the cut-off are still allowed to finish entering the spool, pending spool entries are then discarded, and an entry already being processed by a sink worker is allowed to finish before deletion continues. This behavior is independent of the sink type and of `force`. With `DELETE /api/subscriptions/{subscription_ref}?force`, the consumer still sends the profile-specific publisher termination request, but ignores any failure or negative/unexpected termination response and continues with local termination. The empty `force` query flag must be supplied without a value; `?force=true` and `?force=false` do not enable force deletion. The status page invokes force termination with `?force&spool=false`.
 - `GET /health/live` is a process liveness endpoint.
 - `GET /health/ready` checks local persistence readiness.
 
