@@ -66,9 +66,18 @@ class FakeSiriClient:
 class FakeSpool:
     def __init__(self) -> None:
         self.empty_wait_refs: list[str] = []
+        self.purge_refs: list[str] = []
+        self.idle_wait_refs: list[str] = []
 
     async def wait_until_empty(self, subscription_ref: str) -> None:
         self.empty_wait_refs.append(subscription_ref)
+
+    async def purge(self, subscription_ref: str) -> int:
+        self.purge_refs.append(subscription_ref)
+        return 2
+
+    async def wait_until_idle(self, subscription_ref: str) -> None:
+        self.idle_wait_refs.append(subscription_ref)
 
 
 class FakeSinkFactory:
@@ -167,6 +176,48 @@ async def test_force_termination_attempts_publisher_and_deletes_subscription_on_
     assert sink_factory.removed_refs == ["sub-1"]
     with pytest.raises(DeliveryAdmissionDeletedError):
         await admission.acquire("sub-1")
+
+
+@pytest.mark.asyncio
+async def test_termination_can_discard_pending_spool_without_force() -> None:
+    repository = FakeRepository(SubscriptionRecord(config=_config(), status=SubscriptionStatus.ACTIVE))
+    siri_client = FakeSiriClient()
+    spool = FakeSpool()
+    sink_factory = FakeSinkFactory()
+    admission = DeliveryAdmissionController()
+    manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, admission
+    )  # type: ignore[arg-type]
+
+    await manager.terminate("sub-1", spool=False)
+
+    assert repository.record is None
+    assert siri_client.terminated_refs == ["sub-1"]
+    assert spool.empty_wait_refs == []
+    assert spool.purge_refs == ["sub-1"]
+    assert spool.idle_wait_refs == ["sub-1"]
+    assert sink_factory.removed_refs == ["sub-1"]
+
+
+@pytest.mark.asyncio
+async def test_force_termination_can_discard_pending_spool() -> None:
+    repository = FakeRepository(SubscriptionRecord(config=_config(), status=SubscriptionStatus.ACTIVE))
+    siri_client = FakeSiriClient(fail_terminate=True)
+    spool = FakeSpool()
+    sink_factory = FakeSinkFactory()
+    admission = DeliveryAdmissionController()
+    manager = SubscriptionManager(
+        repository, siri_client, spool, sink_factory, admission
+    )  # type: ignore[arg-type]
+
+    await manager.terminate("sub-1", force=True, spool=False)
+
+    assert repository.record is None
+    assert siri_client.terminated_refs == ["sub-1"]
+    assert spool.empty_wait_refs == []
+    assert spool.purge_refs == ["sub-1"]
+    assert spool.idle_wait_refs == ["sub-1"]
+    assert sink_factory.removed_refs == ["sub-1"]
 
 
 @pytest.mark.asyncio

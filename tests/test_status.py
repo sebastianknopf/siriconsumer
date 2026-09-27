@@ -68,4 +68,5 @@ def test_status_page_contains_subscription_and_payload_only_spool_size(tmp_path,
     assert "download-logs" in response.text
     assert "clear-logs" in response.text
     assert "force-terminate" in response.text
+    assert "?force&spool=false" in response.text
     assert "Archived Logs" in response.text
