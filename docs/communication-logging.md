@@ -30,10 +30,10 @@ The supplied Compose configuration mounts the host directory:
 ./log/siri:/var/log/siri
 ```
 
-Each subscription gets its own directory. A subscription reference is URL-escaped before it is used as a directory name, preventing path separators in an identifier from escaping the log root.
+Each subscription gets its own directory and each creation of that subscription reference gets a generation subdirectory. A subscription reference is URL-escaped before it is used as a directory name, preventing path separators in an identifier from escaping the log root.
 
 ```text
-/var/log/siri/{subscription_ref}/
+/var/log/siri/{subscription_ref}/{generation}/
 ```
 
 ## Filenames and Direction
@@ -63,16 +63,26 @@ All persisted XML is pretty-printed. Logging failures are reported through the n
 
 Some profile callbacks can address more than one local subscription, for example a VDV data-ready callback matching the same producer and service. The request and response are written independently into every matching subscription directory whose `logging` flag is enabled. Subscriptions with logging disabled receive no communication log file.
 
-## Retention Warning
+## Built-In Retention
 
-**Communication logs are not deleted automatically.** Deleting a subscription through the Control API removes its active subscription state but deliberately leaves `/var/log/siri/{subscription_ref}` untouched. Recreating the same subscription reference continues writing into the existing directory.
+The consumer runs communication-log retention in a dedicated operating-system process. Filesystem scanning and deletion therefore do not block the FastAPI event loop.
 
-Production deployments must therefore provide their own retention policy, log rotation, archival, or deletion process for the mounted `./log/siri` directory. XML payloads may contain operational or otherwise sensitive transport data, so filesystem access and retention should be configured accordingly.
+The defaults keep a rolling 24-hour window and check once per hour:
 
-When using the container as UID/GID `10001`, ensure the bind-mounted host directory is writable, for example:
-
-```bash
-mkdir -p log/siri
-sudo chown -R 10001:10001 log/siri
-sudo chmod -R u+rwX log/siri
+```text
+SIRI_LOG_RETENTION_HOURS=24
+SIRI_LOG_RETENTION_CHECK_INTERVAL_SECONDS=3600
+SIRI_LOG_MAX_SIZE_BYTES=0
 ```
+
+`SIRI_LOG_RETENTION_HOURS=0` disables age-based deletion. `SIRI_LOG_MAX_SIZE_BYTES=0` disables the global size cap. When a positive size cap is configured, retention first removes files older than the age limit and then removes the oldest remaining XML files until the complete communication-log tree is within the configured byte limit.
+
+Logs are stored by subscription generation:
+
+```text
+/var/log/siri/{subscription_ref}/{generation}/
+```
+
+Recreating a previously deleted `subscription_ref` therefore starts a new generation instead of mixing new communication with an older subscription instance. Pre-generation flat log files remain readable as legacy archives.
+
+Deleting a subscription does not delete its logs. Once the subscription no longer exists, its remaining generations appear in the **Archived Logs** section of `/status` until they are manually cleared or removed by retention.

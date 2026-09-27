@@ -48,7 +48,7 @@ Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status relate
 
 ### Per-Subscription Communication Logging
 
-XML wire logging is controlled by the generic subscription field `logging`. The file logger returns immediately when the flag is false, before XML parsing or pretty-printing. When enabled, inbound consumer transactions and outbound publisher transactions are stored as pretty-printed XML below the configured communication log directory. Log storage is independent of subscription lifecycle deletion and is not automatically cleaned up. See `communication-logging.md`.
+XML wire logging is controlled by the generic subscription field `logging`. The file logger returns immediately when the flag is false, before XML parsing or pretty-printing. When enabled, inbound consumer transactions and outbound publisher transactions are stored as pretty-printed XML below the configured communication log directory. Log storage is independent of subscription lifecycle deletion and is cleaned by a dedicated retention process according to the configured age and optional global size limits. See `communication-logging.md`.
 
 ### Subscription Manager
 

@@ -33,4 +33,4 @@ The status page exposes log actions for each subscription:
 - `GET /api/subscriptions/{subscription_ref}/logs/download` downloads all currently stored communication logs for the subscription as a ZIP archive.
 - `DELETE /api/subscriptions/{subscription_ref}/logs` clears all currently stored communication logs for the subscription.
 
-Both endpoints require the subscription to exist. Log files are read from the fixed communication log root `/var/log/siri`. Clearing logs does not change the subscription's `logging` configuration and does not affect subscription state.
+The log endpoints remain available after a subscription is deleted as long as communication logs still exist. Archived generation-specific actions use the optional `generation` query parameter. Log files are read from the fixed communication log root `/var/log/siri`. Clearing logs does not change a live subscription's `logging` configuration and does not affect subscription state.

@@ -129,7 +129,7 @@ The `service` field always uses SIRI service codes at the public API boundary, e
 
 `logging` is a generic boolean subscription field and defaults to `false`. When enabled, XML request and response payloads associated with the subscription are written to the per-subscription communication log directory. When disabled, the logging component returns before XML parsing and pretty-printing, so disabled subscriptions do not pay that formatting cost.
 
-Deleting a subscription does not delete its communication log directory or files. The application performs no automatic retention or cleanup of these logs. See `docs/communication-logging.md` for filenames, directions, storage configuration, and operational warnings.
+Deleting a subscription does not delete its communication logs. Deleted-subscription logs remain available through the log API and the Archived Logs section of `/status` until built-in retention or a manual clear removes them. See `docs/communication-logging.md` for generation directories, retention settings, filenames, and storage behavior.
 
 
 ## Subscription Identity
