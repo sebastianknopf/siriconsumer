@@ -43,7 +43,9 @@ class SpoolStub:
         return 3
 
 
-def test_status_page_contains_subscription_and_payload_only_spool_size() -> None:
+def test_status_page_contains_subscription_and_payload_only_spool_size(tmp_path, monkeypatch) -> None:
+    import siriconsumer.api.status as status_module
+    monkeypatch.setattr(status_module, "COMMUNICATION_LOG_ROOT", tmp_path)
     app = FastAPI()
     app.include_router(router)
     app.state.services = SimpleNamespace(repository=RepositoryStub(), spool=SpoolStub())
@@ -53,9 +55,8 @@ def test_status_page_contains_subscription_and_payload_only_spool_size() -> None
     assert "default" in response.text
     assert "1.5 KiB / 3" in response.text
     assert "Spool Size shows payload bytes / data files only" in response.text
-    assert 'http-equiv="refresh"' not in response.text
-    assert '>Refresh</button>' in response.text
-    assert 'onclick="window.location.reload()"' in response.text
+    assert 'content="5"' not in response.text
+    assert 'id="refresh-page"' in response.text
     assert "Status overview" not in response.text
     assert "Version " in response.text
     assert "Last Data Received" in response.text
@@ -66,3 +67,5 @@ def test_status_page_contains_subscription_and_payload_only_spool_size() -> None
     assert "<th>Actions</th>" in response.text
     assert "download-logs" in response.text
     assert "clear-logs" in response.text
+    assert "force-terminate" in response.text
+    assert "Archived Logs" in response.text

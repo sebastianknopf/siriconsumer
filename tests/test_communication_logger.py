@@ -48,7 +48,7 @@ async def test_enabled_logging_writes_pretty_xml(tmp_path: Path, monkeypatch: py
         payload=b"<root><value>1</value></root>",
     )
 
-    files = list((tmp_path / "vm%2Ftest").glob("*_OUT_Response.xml"))
+    files = list((tmp_path / "vm%2Ftest").glob("*/*_OUT_Response.xml"))
     assert len(files) == 1
     assert files[0].name[:23].count("-") == 6
     assert files[0].read_bytes() == (

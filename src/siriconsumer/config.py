@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     port: int = 8080
     state_dir: Path = Path("/app/state")
     log_level: str = "INFO"
+    log_retention_hours: float = Field(default=24.0, ge=0)
+    log_retention_check_interval_seconds: float = Field(default=3600.0, gt=0)
+    log_max_size_bytes: int = Field(default=0, ge=0)
     spool_max_messages_per_subscription: int = Field(default=100, ge=1)
     spool_worker_count: int = Field(default=4, ge=1, le=64)
     spool_retry_base_seconds: float = Field(default=1.0, gt=0)

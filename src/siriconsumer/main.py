@@ -22,6 +22,7 @@ from siriconsumer.services.communication_logger import FileCommunicationLogger
 from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.delivery_service import DeliveryService
 from siriconsumer.services.fetched_delivery_service import FetchedDeliveryService
+from siriconsumer.services.log_retention import LogRetentionProcess
 from siriconsumer.services.provider_monitor import ProviderMonitor
 from siriconsumer.services.sink_worker import SinkWorkerPool
 from siriconsumer.services.subscription_manager import SubscriptionManager
@@ -80,6 +81,11 @@ async def lifespan(app: FastAPI):
     )
 
     sink_workers = SinkWorkerPool(settings, spool, repository, sink_factory)
+    log_retention = LogRetentionProcess(
+        retention_hours=settings.log_retention_hours,
+        check_interval_seconds=settings.log_retention_check_interval_seconds,
+        max_size_bytes=settings.log_max_size_bytes,
+    )
 
     services = AppServices(
         repository=repository,
@@ -98,6 +104,7 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
 
     await repository.initialize()
+    log_retention.start()
     await spool.initialize()
     await sink_workers.start()
     await fetched_delivery_service.start()
@@ -107,6 +114,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        log_retention.stop()
         await provider_monitor.stop()
         await fetched_delivery_service.stop()
         await sink_workers.stop()

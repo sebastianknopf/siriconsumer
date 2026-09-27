@@ -37,6 +37,7 @@ class FileCommunicationLogger:
             await asyncio.to_thread(
                 self._write_pretty_xml,
                 subscription.config.subscription_ref,
+                subscription.created_at,
                 direction,
                 kind,
                 payload,
@@ -45,6 +46,7 @@ class FileCommunicationLogger:
             logger.exception(
                 "Failed to persist communication XML subscription_ref=%s direction=%s kind=%s",
                 subscription.config.subscription_ref,
+                subscription.created_at,
                 direction,
                 kind,
             )
@@ -52,6 +54,7 @@ class FileCommunicationLogger:
     def _write_pretty_xml(
         self,
         subscription_ref: str,
+        created_at: datetime,
         direction: CommunicationDirection,
         kind: CommunicationKind,
         payload: bytes,
@@ -65,7 +68,8 @@ class FileCommunicationLogger:
             pretty_print=True,
         )
 
-        directory = COMMUNICATION_LOG_ROOT / quote(subscription_ref, safe="")
+        generation = created_at.astimezone().strftime("%Y%m%dT%H%M%S%f%z")
+        directory = COMMUNICATION_LOG_ROOT / quote(subscription_ref, safe="") / generation
         directory.mkdir(parents=True, exist_ok=True)
 
         while True:
