@@ -6,6 +6,9 @@ services:
     environment:
       SIRI_STATE_DIR: /app/state
       SIRI_LOG_LEVEL: ${SIRI_LOG_LEVEL:-INFO}
+      SIRI_LOG_RETENTION_HOURS: ${SIRI_LOG_RETENTION_HOURS:-24}
+      SIRI_LOG_RETENTION_CHECK_INTERVAL_SECONDS: ${SIRI_LOG_RETENTION_CHECK_INTERVAL_SECONDS:-3600}
+      SIRI_LOG_MAX_SIZE_BYTES: ${SIRI_LOG_MAX_SIZE_BYTES:-0}
     volumes:
       - ./state:/app/state
       - ./output:/app/output
