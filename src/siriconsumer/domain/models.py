@@ -14,9 +14,20 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class SubscriptionStopId(BaseModel):
+    stop_id: str | None = None
+    area_id: str | None = None
+    platform_id: str | None = None
+    sector_id: str | None = None
+
+
 class SubscriptionFilters(BaseModel):
     lines: list[str] = Field(default_factory=list)
+    directions: list[str] = Field(default_factory=list)
     operators: list[str] = Field(default_factory=list)
+    products: list[str] = Field(default_factory=list)
+    vehicle_modes: list[str] = Field(default_factory=list)
+    stops: list[list[SubscriptionStopId]] = Field(default_factory=list)
 
 
 class SubscriptionPolicy(BaseModel):

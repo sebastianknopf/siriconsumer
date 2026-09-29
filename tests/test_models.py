@@ -62,3 +62,32 @@ def test_mtls_requires_both_certificate_and_key_filenames() -> None:
         SubscriptionCreate.model_validate(
             {**base, "mtls": {"cert_filename": "", "key_filename": "/certs/client.key"}}
         )
+
+
+def test_subscription_filters_keep_existing_shape_and_add_vdv31_extensions() -> None:
+    model = SubscriptionCreate.model_validate({
+        "provider_url": "https://publisher.example/vdv",
+        "profile": "de-vdv",
+        "version": "3.1",
+        "service": "ET",
+        "delivery_mode": "fetched",
+        "requestor_ref": "consumer",
+        "subscriber_ref": "consumer",
+        "producer_ref": "producer",
+        "subscription_ref": "sub-vdv31",
+        "filters": {
+            "lines": ["10"],
+            "directions": ["A"],
+            "operators": ["85:11"],
+            "products": ["Bus"],
+            "vehicle_modes": ["NFB"],
+            "stops": [[{"stop_id": "de:1:stop", "platform_id": "de:1:stop:1"}]],
+        },
+        "sink": {"type": "directory", "path": "/tmp/output"},
+    })
+    assert model.filters.lines == ["10"]
+    assert model.filters.operators == ["85:11"]
+    assert model.filters.directions == ["A"]
+    assert model.filters.products == ["Bus"]
+    assert model.filters.vehicle_modes == ["NFB"]
+    assert model.filters.stops[0][0].stop_id == "de:1:stop"
