@@ -20,7 +20,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | --- | --- | --- |
 | `provider_url` | URL of the producer. Its exact interpretation is profile-specific. The default profile uses it as the SIRI endpoint; other profiles may use it as the base for action-specific producer URLs. | `"https://producer.example/siri"` |
 | `profile` | Communication profile identifier. Defaults to `default`. Profile and version are selected independently. | `"default"`, `"de-vdv"` |
-| `version` | Version of the selected communication profile. Defaults to `default`. | `"default"`, `"2"` |
+| `version` | Version of the selected communication profile. Defaults to `default`. | `"default"`, `"2"`, `"3.1"` |
 | `service` | SIRI service code exposed by the public API. Profiles map this code to their protocol-specific service where required. | `"ET"`, `"PT"`, `"VM"` |
 | `delivery_mode` | Delivery mode used by the subscription. | `"direct"`, `"fetched"` |
 | `requestor_ref` | Identifier of the requesting consumer. Profiles may map this to their corresponding consumer/sender identifier. | `"MY-CONSUMER"` |
@@ -39,6 +39,10 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `parameters` | Generic object containing profile-specific parameters. The supported keys and their semantics are documented by each profile. | `{"visId": "VIS-AREA-1"}` |
 | `filters.lines` | Optional list of line references used as subscription filters where supported. | `["10", "11"]` |
 | `filters.operators` | Optional list of operator references used as subscription filters where supported. | `["OP-1"]` |
+| `filters.directions` | Optional direction references paired with `filters.lines` where supported. VDV 3.1 combines all requested lines with all requested directions. | `["A", "B"]` |
+| `filters.products` | Optional product identifiers, used by VDV 3.1 REF-AUS/AUS. | `["Bus"]` |
+| `filters.vehicle_modes` | Optional vehicle-mode identifiers, used by VDV 3.1 REF-AUS/AUS. | `["NFB"]` |
+| `filters.stops` | Optional grouped stop filters for VDV 3.1 REF-AUS/AUS. Each inner array is an OR alternative; stop IDs within one inner array are AND criteria. | `[[{"stop_id": "de:1:stop"}]]` |
 | `subscription_policy.update_interval` | Optional ISO-8601 minimum update interval requested from the producer. | `"PT30S"` |
 | `heartbeat.enabled` | Requests publisher heartbeat notifications where supported. Default: `true`. | `true`, `false` |
 | `heartbeat.interval` | Requested ISO-8601 heartbeat interval. Default: `PT1M`. | `"PT1M"`, `"PT30S"` |
@@ -121,9 +125,9 @@ For profile-specific values inside `parameters`, consult the corresponding profi
 
 ## Communication Profile
 
-Every subscription has independent `profile` and `version` fields. Both default to `default`, preserving the existing standard SIRI behavior. A concrete protocol implementation is selected by the `(profile, version)` pair, so incompatible generations such as `de-vdv` version `2` and a future `de-vdv` version `3.1` can coexist. Profile-specific validation happens before a new subscription is persisted. See `docs/profiles.md`.
+Every subscription has independent `profile` and `version` fields. Both default to `default`, preserving the existing standard SIRI behavior. A concrete protocol implementation is selected by the `(profile, version)` pair, so incompatible generations such as `de-vdv` version `2` and `de-vdv` version `3.1` can coexist. Profile-specific validation happens before a new subscription is persisted. See `docs/profiles.md`.
 
-The `service` field always uses SIRI service codes at the public API boundary, even for non-default profiles. The optional generic `producer_ref` identifies the remote producer where a profile needs an agreed producer identity; `de-vdv` version `2` requires it for callback routing.
+The `service` field always uses SIRI service codes at the public API boundary, even for non-default profiles. The optional generic `producer_ref` identifies the remote producer where a profile needs an agreed producer identity; `de-vdv` versions `2` and `3.1` require it for callback routing.
 
 ## Communication Logging
 

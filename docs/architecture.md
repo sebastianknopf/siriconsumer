@@ -40,7 +40,7 @@ Manages the desired subscription set. Configuration is persisted locally before 
 
 ### Communication Profiles
 
-The profile registry selects protocol behavior per subscription. `default` contains the existing standard SIRI XML behavior. `de-vdv` version `2` contains VDV 453/454 2.x XML, fetched-delivery semantics, and action-specific URL resolution. The registry selects implementations by independent profile ID and version, so incompatible protocol revisions can coexist under the same profile ID. XML builders/parsers live behind `intf_profile.py`; lifecycle, spool, retry, and sinks operate on protocol-neutral results.
+The profile registry selects protocol behavior per subscription. `default` contains the existing standard SIRI XML behavior. `de-vdv` versions `2` and `3.1` contain their respective VDV 453/454 XML, fetched-delivery semantics, filters, and action-specific URL resolution. The registry selects implementations by independent profile ID and version, so incompatible protocol revisions can coexist under the same profile ID. XML builders/parsers live behind `intf_profile.py`; lifecycle, spool, retry, and sinks operate on protocol-neutral results.
 
 ### SIRI Receive API
 
