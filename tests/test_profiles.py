@@ -61,8 +61,9 @@ def test_profile_registry_supports_versioned_vdv_profile() -> None:
 
     assert registry.get("default", "default").profile_id == "default"
     assert registry.get("de-vdv", "2").profile_id == "de-vdv"
+    assert registry.get("de-vdv", "3.1").profile_id == "de-vdv"
     with pytest.raises(UnknownProfileError):
-        registry.get("de-vdv", "3.1")
+        registry.get("de-vdv", "9")
 
 
 def test_vdv_profile_builds_action_specific_urls_and_subscription_xml() -> None:
@@ -269,3 +270,118 @@ def test_vdv_inbound_path_maps_vdv_service_to_siri_service(
 
     assert message.service == siri_service
     assert message.producer_ref == "producer-control-centre"
+
+from siriconsumer.profiles.de_vdv_31 import GermanVdv31Profile
+
+
+def _vdv31_config(service: str, *, parameters: dict | None = None, filters: dict | None = None) -> SubscriptionCreate:
+    defaults = {
+        "CT": {"asbId": "ASB-1", "earliestArrivalTime": "2026-09-29T10:00:00+02:00", "latestArrivalTime": "2026-09-29T12:00:00+02:00"},
+        "CM": {"asbId": "ASB-1", "hysteresis": 120, "timeFilter": {"earliestArrivalTime": "2026-09-29T10:00:00+02:00", "latestArrivalTime": "2026-09-29T12:00:00+02:00", "previewTime": 30}},
+        "ST": {"azbId": "AZB-1", "earliestDepartureTime": "2026-09-29T10:00:00+02:00", "latestDepartureTime": "2026-09-29T12:00:00+02:00"},
+        "SM": {"azbId": "AZB-1", "previewTime": 30, "hysteresis": 60},
+        "VM": {"visId": "VIS-1"},
+        "PT": {"validFrom": "2026-09-29T03:00:00+02:00", "validUntil": "2026-09-30T03:00:00+02:00"},
+        "ET": {"hysteresis": 60, "previewTime": 120},
+    }
+    return SubscriptionCreate.model_validate({
+        "provider_url": "https://publisher.example/vdv31",
+        "profile": "de-vdv", "version": "3.1", "service": service,
+        "delivery_mode": "fetched", "requestor_ref": "consumer", "subscriber_ref": "consumer",
+        "producer_ref": "producer", "subscription_ref": f"abo-{service.lower()}",
+        "initial_termination_time": "2026-09-30T04:00:00+02:00",
+        "parameters": parameters if parameters is not None else defaults[service],
+        "filters": filters or {}, "sink": {"type": "directory", "path": "/tmp/vdv31"},
+    })
+
+
+def test_profile_registry_supports_vdv_31() -> None:
+    profile = ProfileRegistry().get("de-vdv", "3.1")
+    assert profile.version == "3.1"
+    assert profile.supported_services == ("CT", "CM", "ST", "SM", "VM", "PT", "ET")
+
+
+@pytest.mark.parametrize(("service", "element"), [("CT", "AboASBRef"), ("CM", "AboASB"), ("ST", "AboAZBRef"), ("SM", "AboAZB"), ("VM", "AboVIS"), ("PT", "AboAUSRef"), ("ET", "AboAUS")])
+def test_vdv31_builds_all_supported_service_subscriptions(service: str, element: str) -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config(service)
+    profile.validate_subscription(config)
+    root = etree.fromstring(profile.build_subscription_request(SubscriptionRecord(config=config)))
+    assert root.get("XSDVersionID") == "VDV453_incl_454_V3.1.0_v12"
+    assert root.find(element) is not None
+
+
+def test_vdv31_ref_aus_builds_complete_filter_set() -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config("PT", filters={
+        "lines": ["L1", "L2"], "directions": ["A"],
+        "operators": ["85:11"], "products": ["Bus"], "vehicle_modes": ["NFB"],
+        "stops": [[{"stop_id": "de:1:stop", "platform_id": "de:1:stop:1"}, {"stop_id": "de:1:other"}]],
+    })
+    profile.validate_subscription(config)
+    abo = etree.fromstring(profile.build_subscription_request(SubscriptionRecord(config=config))).find("AboAUSRef")
+    assert abo is not None
+    assert [(x.findtext("LinienID"), x.findtext("RichtungsID")) for x in abo.findall("LinienFilter")] == [("L1", "A"), ("L2", "A")]
+    assert abo.findtext("BetreiberFilter/BetreiberID") == "85:11"
+    assert abo.findtext("ProduktFilter/ProduktID") == "Bus"
+    assert abo.findtext("VerkehrsmittelIDFilter/VerkehrsmittelID") == "NFB"
+    assert [x.findtext("HaltestellenID") for x in abo.findall("HaltFilter/HaltID")] == ["de:1:stop", "de:1:other"]
+
+
+def test_vdv31_ans_enforces_exclusive_filter_modes() -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config("CM")
+    profile.validate_subscription(config)
+    both = config.model_copy(update={"parameters": {**config.parameters, "journeyFilters": [{"journeyRef": "j", "operatingDay": "2026-09-29", "stopSequenceCounter": 1, "plannedArrivalTime": "2026-09-29T11:00:00+02:00", "previewTime": 30}]}})
+    with pytest.raises(ValueError, match="either parameters.journeyFilters or parameters.timeFilter"):
+        profile.validate_subscription(both)
+
+
+def test_vdv31_data_supply_request_explicitly_requests_updates_only() -> None:
+    profile = GermanVdv31Profile()
+    record = SubscriptionRecord(config=_vdv31_config("ET"))
+    root = etree.fromstring(profile.build_data_supply_request(record))
+    assert root.findtext("DatensatzAlle") == "false"
+
+
+def test_vdv31_ans_builds_journey_filter() -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config("CM", parameters={
+        "asbId": "ASB-1", "hysteresis": 120,
+        "journeyFilters": [{
+            "journeyRef": "de:vbb:journey:7748", "operatingDay": "2026-09-29",
+            "stopSequenceCounter": 1, "plannedArrivalTime": "2026-09-29T16:00:00+02:00", "previewTime": 30,
+        }],
+    })
+    profile.validate_subscription(config)
+    abo = etree.fromstring(profile.build_subscription_request(SubscriptionRecord(config=config))).find("AboASB")
+    assert abo is not None
+    assert abo.findtext("FahrtFilter/FahrtID/FahrtBezeichner") == "de:vbb:journey:7748"
+    assert abo.findtext("FahrtFilter/FahrtID/Betriebstag") == "2026-09-29"
+    assert abo.findtext("FahrtFilter/HstSeqZaehler") == "1"
+    assert abo.findtext("Hysterese") == "120"
+
+
+def test_vdv31_dfi_and_vis_filters_are_service_specific() -> None:
+    profile = GermanVdv31Profile()
+    sm = _vdv31_config("SM", filters={"lines": ["L1"], "directions": ["A"]})
+    sm_abo = etree.fromstring(profile.build_subscription_request(SubscriptionRecord(config=sm))).find("AboAZB")
+    assert sm_abo is not None
+    assert sm_abo.findtext("LinienFilter/LinienID") == "L1"
+    assert sm_abo.findtext("LinienFilter/RichtungsID") == "A"
+    assert sm_abo.findtext("Vorschauzeit") == "30"
+    assert sm_abo.findtext("Hysterese") == "60"
+
+    vm = _vdv31_config("VM", parameters={"visId": "VIS-1"}, filters={"lines": ["L9"], "directions": ["B"]})
+    vm_abo = etree.fromstring(profile.build_subscription_request(SubscriptionRecord(config=vm))).find("AboVIS")
+    assert vm_abo is not None
+    assert vm_abo.findtext("LinienID") == "L9"
+    assert vm_abo.findtext("RichtungsID") == "B"
+
+
+def test_vdv31_rejects_and() -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config("ET").model_copy(update={"service": "AND"})
+    with pytest.raises(ValueError, match="CT, CM, ST, SM, VM, PT, and ET"):
+        profile.validate_subscription(config)
+

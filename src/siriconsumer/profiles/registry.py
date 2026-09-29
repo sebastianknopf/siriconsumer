@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from siriconsumer.interfaces.intf_profile import CommunicationProfile
 from siriconsumer.profiles.de_vdv_2 import GermanVdv2Profile
+from siriconsumer.profiles.de_vdv_31 import GermanVdv31Profile
 from siriconsumer.profiles.default import DefaultSiriProfile
 
 
@@ -11,7 +12,7 @@ class UnknownProfileError(ValueError):
 
 class ProfileRegistry:
     def __init__(self, profiles: list[CommunicationProfile] | None = None) -> None:
-        configured = profiles or [DefaultSiriProfile(), GermanVdv2Profile()]
+        configured = profiles or [DefaultSiriProfile(), GermanVdv2Profile(), GermanVdv31Profile()]
         self._profiles = {
             (profile.profile_id, profile.version): profile
             for profile in configured
