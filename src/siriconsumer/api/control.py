@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from typing import Annotated
 
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
@@ -52,15 +53,41 @@ async def restart_subscription(subscription_ref: str, request: Request) -> Subsc
 async def delete_subscription(
     subscription_ref: str,
     request: Request,
-    spool: bool = Query(default=True),
+    spool: Annotated[
+        bool,
+        Query(
+            description=(
+                "Whether queued spool entries must be delivered before the "
+                "subscription is deleted. Set to false to discard pending "
+                "entries after any in-flight delivery has completed."
+            ),
+        ),
+    ] = True,
+    force: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Force local termination even if the producer termination "
+                "request fails. Presence of this parameter enables force mode."
+            ),
+        ),
+    ] = None,
 ) -> None:
-    force_values = request.query_params.getlist("force")
-    force = bool(force_values) and all(value == "" for value in force_values)
+    force_enabled = force is not None
+
     try:
         await _services(request).subscription_manager.terminate(
-            subscription_ref, force=force, spool=spool
+            subscription_ref,
+            force=force_enabled,
+            spool=spool,
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Subscription not found") from exc
+        raise HTTPException(
+            status_code=404,
+            detail="Subscription not found",
+        ) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Subscription termination failed: {exc}") from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"Subscription termination failed: {exc}",
+        ) from exc
