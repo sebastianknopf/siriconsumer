@@ -94,8 +94,18 @@ The following example shows a complete request body for creating a standard SIRI
       "10",
       "11"
     ],
-    "operators": [
-      "OP-1"
+    "directions": ["A"],
+    "operators": ["85:11"],
+    "products": ["Bus"],
+    "vehicle_modes": ["NFB"],
+    "stops": [
+      [
+        {"stop_id": "de:11000:900023201", "platform_id": "de:11000:900023201:1:50"},
+        {"stop_id": "de:11000:900023173"}
+      ],
+      [
+        {"stop_id": "de:11000:900023152"}
+      ]
     ]
   },
   "subscription_policy": {

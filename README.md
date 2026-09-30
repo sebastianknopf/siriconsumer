@@ -149,34 +149,19 @@ src/siriconsumer/version.py
   "service": "VM",
   "delivery_mode": "direct",
   "requestor_ref": "consumer-a",
-  "subscriber_ref": "consumer-a",
+  "producer_ref": "producer-a",
   "subscription_ref": "vm-example",
-  "logging": false,
-  "request_timestamp": "2026-09-08T06:00:00Z",
-  "consumer_address": "http://siriconsumer:8080/consumer",
-  "preview_interval": "PT2H",
+  "consumer_address": "http://siriconsumer:8080/",
   "initial_termination_time": "2999-12-31T23:59:59Z",
   "incremental_updates": true,
-  "change_before_updates": "PT30S",
-  "filters": {
-    "lines": ["10", "20"],
-    "operators": ["operator-a"]
-  },
-  "subscription_policy": {
-    "update_interval": "PT30S"
-  },
-  "heartbeat": {
-    "enabled": true,
-    "interval": "PT1M",
-    "timeout_seconds": 180,
-    "check_status_enabled": false
-  },
   "sink": {
     "type": "directory",
     "path": "/app/output"
   }
 }
 ```
+
+See a full example for the subscription API in [docs/subscriptions.md][docs/subscriptions.md].
 
 ## Persistence and Recovery
 
