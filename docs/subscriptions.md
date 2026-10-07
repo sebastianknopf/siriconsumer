@@ -25,7 +25,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `delivery_mode` | Delivery mode used by the subscription. | `"direct"`, `"fetched"` |
 | `requestor_ref` | Identifier of the requesting consumer. Profiles may map this to their corresponding consumer/sender identifier. | `"MY-CONSUMER"` |
 | `subscriber_ref` | SIRI subscriber reference. It remains a generic subscription field even when a selected profile does not use it. | `"MY-SUBSCRIBER"` |
-| `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER-LEIPZIG"` |
+| `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER"` |
 | `subscription_ref` | Unique subscription identity inside the consumer. It is also used as the protocol subscription identifier where the selected profile maps it accordingly. | `"et-001"` |
 | `request_timestamp` | Optional request timestamp. When omitted, the profile can generate the appropriate current timestamp. | `"2026-09-18T18:30:00Z"` |
 | `consumer_address` | Optional externally reachable consumer callback URL. | `"https://consumer.example/"` |
