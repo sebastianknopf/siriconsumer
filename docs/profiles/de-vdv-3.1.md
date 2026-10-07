@@ -8,11 +8,13 @@ The profile uses fetched delivery and supports every VDV 453/454 subscription se
 
 Inbound callbacks use:
 
-`/profile/de-vdv/3.1/{ProducerRef}/{VDV-Service}/{Action}.xml`
+`/{ProducerRef}/{VDV-Service}/{Action}.xml`
 
 For example:
 
-`/profile/de-vdv/3.1/PRODUCER-LEIPZIG/AUS/datenbereit.xml`
+`/PRODUCER-LEIPZIG/AUS/datenbereit.xml`
+
+The consumer maps the VDV service to its SIRI service code and resolves `profile` and `version` from subscriptions persisted for `(producer_ref, service)`. Multiple subscriptions can share that endpoint, but all `de-vdv` subscriptions on it must use version `3.1`; a conflicting version is rejected with HTTP 409.
 
 The service mapping is:
 

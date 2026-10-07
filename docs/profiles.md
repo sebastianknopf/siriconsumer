@@ -6,19 +6,19 @@ The profile registry is keyed by `(profile, version)`. This allows incompatible 
 
 ## Consumer Callback URLs
 
-The default profile is available without an explicit profile path:
+The default SIRI profile receives publisher callbacks at:
 
 ```text
 POST /
 ```
 
-Explicit profiles use:
+VDV callbacks use the standard VDV endpoint shape without an explicit profile/version prefix:
 
 ```text
-/profile/{profileId}/{version}/{profile-specific-part}
+POST /{producer_ref}/{VDV-service}/{action}.xml
 ```
 
-The profile-specific part may be empty. Its syntax and meaning are owned by the selected profile. This keeps protocol-specific URL conventions out of the generic consumer routing layer.
+For VDV endpoints, the consumer maps the VDV service name to the public SIRI service code and looks up subscriptions by `(producer_ref, service)`. The persisted subscription rows determine the `profile` and `version` used to parse and answer the request. All `de-vdv` subscriptions sharing one `(producer_ref, service)` endpoint must therefore use the same profile version. Multiple subscriptions on that endpoint remain supported.
 
 ## Available Profiles
 

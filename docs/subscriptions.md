@@ -139,6 +139,8 @@ Every subscription has independent `profile` and `version` fields. Both default 
 
 The `service` field always uses SIRI service codes at the public API boundary, even for non-default profiles. The optional generic `producer_ref` identifies the remote producer where a profile needs an agreed producer identity; `de-vdv` versions `2` and `3.1` require it for callback routing.
 
+SQLite stores `subscriber_ref`, `producer_ref`, `service`, `profile`, and `version` as dedicated routing columns in addition to the durable JSON configuration. Existing databases are migrated and backfilled during initialization. For `de-vdv`, `(producer_ref, service)` identifies the inbound VDV endpoint. Any number of subscriptions may share that endpoint as long as they use the same `profile` and `version`; binding the same endpoint to another VDV version is rejected with HTTP 409. This routing constraint does not apply to the default SIRI profile.
+
 ## Communication Logging
 
 `logging` is a generic boolean subscription field and defaults to `false`. When enabled, XML request and response payloads associated with the subscription are written to the per-subscription communication log directory. When disabled, the logging component returns before XML parsing and pretty-printing, so disabled subscriptions do not pay that formatting cost.
