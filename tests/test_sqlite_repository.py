@@ -144,3 +144,79 @@ async def test_status_update_does_not_overwrite_runtime_timestamps(tmp_path) -> 
     assert loaded.last_message_at == message_at
     assert loaded.last_heartbeat_at == heartbeat_at
     assert loaded.last_service_started_time == service_started_time
+
+
+def _vdv_config(subscription_ref: str, version: str = "3.1") -> SubscriptionCreate:
+    parameters = {
+        "hysteresis": "PT30S",
+        "previewTime": "PT2H",
+    }
+    return SubscriptionCreate.model_validate(
+        {
+            "provider_url": "https://publisher.example/vdv",
+            "profile": "de-vdv",
+            "version": version,
+            "service": "ET",
+            "delivery_mode": "fetched",
+            "requestor_ref": "consumer",
+            "subscriber_ref": "subscriber-a",
+            "producer_ref": "producer-a",
+            "subscription_ref": subscription_ref,
+            "initial_termination_time": "2026-12-01T00:00:00Z",
+            "parameters": parameters if version == "3.1" else {},
+            "sink": {"type": "directory", "path": "/tmp/output"},
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_routing_columns_are_persisted_and_queryable(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+    await repository.create(_vdv_config("vdv-1"))
+
+    async with aiosqlite.connect(database_path) as db:
+        cursor = await db.execute(
+            "SELECT subscriber_ref, producer_ref, service, profile, version "
+            "FROM subscriptions WHERE subscription_ref = ?",
+            ("vdv-1",),
+        )
+        row = await cursor.fetchone()
+
+    assert row == ("subscriber-a", "producer-a", "ET", "de-vdv", "3.1")
+    matches = await repository.list_by_producer_service("producer-a", "ET")
+    assert [record.config.subscription_ref for record in matches] == ["vdv-1"]
+
+
+@pytest.mark.asyncio
+async def test_initialize_backfills_routing_columns_for_existing_database(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    config = _vdv_config("legacy-vdv")
+    now = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(database_path) as db:
+        await db.execute(
+            """
+            CREATE TABLE subscriptions (
+                subscription_ref TEXT PRIMARY KEY, config_json TEXT NOT NULL, status TEXT NOT NULL,
+                last_heartbeat_at TEXT, last_message_at TEXT, last_service_started_time TEXT,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_error TEXT
+            )
+            """
+        )
+        await db.execute(
+            "INSERT INTO subscriptions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                config.subscription_ref,
+                SqliteSubscriptionRepository._serialize_config(config),
+                SubscriptionStatus.ACTIVE.value,
+                None, None, None, now, now, None,
+            ),
+        )
+        await db.commit()
+
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+    matches = await repository.list_by_producer_service("producer-a", "ET")
+
+    assert [record.config.subscription_ref for record in matches] == ["legacy-vdv"]

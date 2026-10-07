@@ -79,20 +79,58 @@ async def receive_default_consumer(request: Request) -> Response:
     return await _receive_profiled(request, "default", "default", None)
 
 
-@router.post("/profile/{profile_id}/{version}")
-async def receive_profile_root(profile_id: str, version: str, request: Request) -> Response:
-    return await _receive_profiled(request, profile_id, version, None)
+VDV_TO_SIRI_SERVICE = {
+    "REF-ANS": "CT",
+    "ANS": "CM",
+    "REF-DFI": "ST",
+    "DFI": "SM",
+    "VIS": "VM",
+    "REF-AUS": "PT",
+    "AUS": "ET",
+}
 
 
-@router.post("/profile/{profile_id}/{version}/{path:path}")
-async def receive_profiled_consumer(
-    profile_id: str, version: str, path: str, request: Request
+@router.post("/{producer_ref}/{vdv_service}/{action}.xml")
+async def receive_vdv_consumer(
+    producer_ref: str, vdv_service: str, action: str, request: Request
 ) -> Response:
-    return await _receive_profiled(request, profile_id, version, path)
+    service = VDV_TO_SIRI_SERVICE.get(vdv_service.strip().upper().replace("_", "-"))
+    if service is None:
+        raise HTTPException(status_code=404, detail="Unsupported VDV service")
+
+    records = [
+        record
+        for record in await _services(request).repository.list_by_producer_service(
+            producer_ref, service
+        )
+        if record.config.profile == "de-vdv"
+    ]
+    if not records:
+        raise HTTPException(
+            status_code=404, detail="No VDV subscription matches producer and service"
+        )
+
+    routes = {(record.config.profile, record.config.version) for record in records}
+    if len(routes) != 1:
+        raise HTTPException(
+            status_code=409,
+            detail="VDV producer/service endpoint is bound to multiple profile versions",
+        )
+
+    profile_id, version = routes.pop()
+    path = f"{producer_ref}/{vdv_service}/{action}.xml"
+    return await _receive_profiled(
+        request, profile_id, version, path, route_subscriptions=records
+    )
 
 
 async def _receive_profiled(
-    request: Request, profile_id: str, version: str, path: str | None
+    request: Request,
+    profile_id: str,
+    version: str,
+    path: str | None,
+    *,
+    route_subscriptions: Sequence[SubscriptionRecord] | None = None,
 ) -> Response:
     services = _services(request)
     try:
@@ -119,8 +157,12 @@ async def _receive_profiled(
                 status_code=400,
                 detail="Data-ready notification cannot be mapped to a subscription or service",
             )
-        subscriptions = await _matching_profile_subscriptions(
-            request, profile_id, version, message.service, message.producer_ref
+        subscriptions = (
+            list(route_subscriptions)
+            if route_subscriptions is not None
+            else await _matching_profile_subscriptions(
+                request, profile_id, version, message.service, message.producer_ref
+            )
         )
         if not subscriptions:
             raise HTTPException(
@@ -129,8 +171,12 @@ async def _receive_profiled(
 
     elif message.message_type is InboundMessageType.CLIENT_STATUS:
         if message.service:
-            subscriptions = await _matching_profile_subscriptions(
-                request, profile_id, version, message.service, message.producer_ref
+            subscriptions = (
+                list(route_subscriptions)
+                if route_subscriptions is not None
+                else await _matching_profile_subscriptions(
+                    request, profile_id, version, message.service, message.producer_ref
+                )
             )
             if message.producer_ref is not None and not subscriptions:
                 raise HTTPException(

@@ -21,6 +21,11 @@ class SqliteSubscriptionRepository:
                 """
                 CREATE TABLE IF NOT EXISTS subscriptions (
                     subscription_ref TEXT PRIMARY KEY,
+                    subscriber_ref TEXT,
+                    producer_ref TEXT,
+                    service TEXT,
+                    profile TEXT,
+                    version TEXT,
                     config_json TEXT NOT NULL,
                     status TEXT NOT NULL,
                     last_heartbeat_at TEXT,
@@ -32,6 +37,16 @@ class SqliteSubscriptionRepository:
                 )
                 """
             )
+            await self._ensure_routing_columns(db)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_subscriptions_producer_service "
+                "ON subscriptions(producer_ref, service)"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_subscriptions_profile_service "
+                "ON subscriptions(profile, version, service)"
+            )
+            await self._backfill_routing_columns(db)
             await db.commit()
 
     async def create(self, config: SubscriptionCreate) -> SubscriptionRecord:
@@ -43,9 +58,10 @@ class SqliteSubscriptionRepository:
                 await db.execute(
                     """
                     INSERT INTO subscriptions (
-                        subscription_ref, config_json, status, last_heartbeat_at, last_message_at,
+                        subscription_ref, subscriber_ref, producer_ref, service, profile, version,
+                        config_json, status, last_heartbeat_at, last_message_at,
                         last_service_started_time, created_at, updated_at, last_error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     self._record_values(record),
                 )
@@ -81,15 +97,20 @@ class SqliteSubscriptionRepository:
     async def list_by_profile_service(
         self, profile: str, version: str, service: str
     ) -> list[SubscriptionRecord]:
-        records = await self.list_all()
-        service_key = service.strip().upper().replace("_", "-")
-        return [
-            record
-            for record in records
-            if record.config.profile == profile
-            and record.config.version == version
-            and record.config.service.strip().upper().replace("_", "-") == service_key
-        ]
+        return await self._query(
+            "SELECT * FROM subscriptions WHERE profile = ? AND version = ? AND service = ? "
+            "ORDER BY created_at",
+            (profile, version, self._service_key(service)),
+        )
+
+    async def list_by_producer_service(
+        self, producer_ref: str, service: str
+    ) -> list[SubscriptionRecord]:
+        return await self._query(
+            "SELECT * FROM subscriptions WHERE producer_ref = ? AND service = ? "
+            "ORDER BY created_at",
+            (producer_ref, self._service_key(service)),
+        )
 
     async def delete(self, subscription_ref: str) -> None:
         async with aiosqlite.connect(self._database_path) as db:
@@ -191,6 +212,11 @@ class SqliteSubscriptionRepository:
     def _record_values(self, record: SubscriptionRecord) -> tuple[object, ...]:
         return (
             record.config.subscription_ref,
+            record.config.subscriber_ref,
+            record.config.producer_ref,
+            self._service_key(record.config.service),
+            record.config.profile,
+            record.config.version,
             self._serialize_config(record.config),
             record.status.value,
             self._dt(record.last_heartbeat_at),
@@ -200,6 +226,38 @@ class SqliteSubscriptionRepository:
             self._dt(record.updated_at),
             record.last_error,
         )
+
+    @staticmethod
+    def _service_key(service: str) -> str:
+        return service.strip().upper().replace("_", "-")
+
+    async def _ensure_routing_columns(self, db: aiosqlite.Connection) -> None:
+        cursor = await db.execute("PRAGMA table_info(subscriptions)")
+        columns = {row[1] for row in await cursor.fetchall()}
+        for name in ("subscriber_ref", "producer_ref", "service", "profile", "version"):
+            if name not in columns:
+                await db.execute(f"ALTER TABLE subscriptions ADD COLUMN {name} TEXT")
+
+    async def _backfill_routing_columns(self, db: aiosqlite.Connection) -> None:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT subscription_ref, config_json FROM subscriptions "
+            "WHERE subscriber_ref IS NULL OR service IS NULL OR profile IS NULL OR version IS NULL"
+        )
+        for row in await cursor.fetchall():
+            config = SubscriptionCreate.model_validate_json(row["config_json"])
+            await db.execute(
+                "UPDATE subscriptions SET subscriber_ref = ?, producer_ref = ?, service = ?, "
+                "profile = ?, version = ? WHERE subscription_ref = ?",
+                (
+                    config.subscriber_ref,
+                    config.producer_ref,
+                    self._service_key(config.service),
+                    config.profile,
+                    config.version,
+                    row["subscription_ref"],
+                ),
+            )
 
     @staticmethod
     def _dt(value: datetime | None) -> str | None:
