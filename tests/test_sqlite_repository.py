@@ -190,33 +190,16 @@ async def test_routing_columns_are_persisted_and_queryable(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_initialize_backfills_routing_columns_for_existing_database(tmp_path) -> None:
+async def test_initialize_creates_complete_routing_schema_on_fresh_database(tmp_path) -> None:
     database_path = tmp_path / "subscriptions.db"
-    config = _vdv_config("legacy-vdv")
-    now = datetime.now(timezone.utc).isoformat()
-    async with aiosqlite.connect(database_path) as db:
-        await db.execute(
-            """
-            CREATE TABLE subscriptions (
-                subscription_ref TEXT PRIMARY KEY, config_json TEXT NOT NULL, status TEXT NOT NULL,
-                last_heartbeat_at TEXT, last_message_at TEXT, last_service_started_time TEXT,
-                created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_error TEXT
-            )
-            """
-        )
-        await db.execute(
-            "INSERT INTO subscriptions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                config.subscription_ref,
-                SqliteSubscriptionRepository._serialize_config(config),
-                SubscriptionStatus.ACTIVE.value,
-                None, None, None, now, now, None,
-            ),
-        )
-        await db.commit()
-
     repository = SqliteSubscriptionRepository(str(database_path))
     await repository.initialize()
-    matches = await repository.list_by_producer_service("producer-a", "ET")
 
-    assert [record.config.subscription_ref for record in matches] == ["legacy-vdv"]
+    async with aiosqlite.connect(database_path) as db:
+        cursor = await db.execute("PRAGMA table_info(subscriptions)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+    assert {"subscription_ref", "subscriber_ref", "producer_ref", "service", "profile", "version"} <= columns
+    await repository.create(_vdv_config("fresh-vdv"))
+    matches = await repository.list_by_producer_service("producer-a", "ET")
+    assert [record.config.subscription_ref for record in matches] == ["fresh-vdv"]

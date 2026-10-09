@@ -37,7 +37,6 @@ class SqliteSubscriptionRepository:
                 )
                 """
             )
-            await self._ensure_routing_columns(db)
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_subscriptions_producer_service "
                 "ON subscriptions(producer_ref, service)"
@@ -46,7 +45,6 @@ class SqliteSubscriptionRepository:
                 "CREATE INDEX IF NOT EXISTS idx_subscriptions_profile_service "
                 "ON subscriptions(profile, version, service)"
             )
-            await self._backfill_routing_columns(db)
             await db.commit()
 
     async def create(self, config: SubscriptionCreate) -> SubscriptionRecord:
@@ -230,34 +228,6 @@ class SqliteSubscriptionRepository:
     @staticmethod
     def _service_key(service: str) -> str:
         return service.strip().upper().replace("_", "-")
-
-    async def _ensure_routing_columns(self, db: aiosqlite.Connection) -> None:
-        cursor = await db.execute("PRAGMA table_info(subscriptions)")
-        columns = {row[1] for row in await cursor.fetchall()}
-        for name in ("subscriber_ref", "producer_ref", "service", "profile", "version"):
-            if name not in columns:
-                await db.execute(f"ALTER TABLE subscriptions ADD COLUMN {name} TEXT")
-
-    async def _backfill_routing_columns(self, db: aiosqlite.Connection) -> None:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT subscription_ref, config_json FROM subscriptions "
-            "WHERE subscriber_ref IS NULL OR service IS NULL OR profile IS NULL OR version IS NULL"
-        )
-        for row in await cursor.fetchall():
-            config = SubscriptionCreate.model_validate_json(row["config_json"])
-            await db.execute(
-                "UPDATE subscriptions SET subscriber_ref = ?, producer_ref = ?, service = ?, "
-                "profile = ?, version = ? WHERE subscription_ref = ?",
-                (
-                    config.subscriber_ref,
-                    config.producer_ref,
-                    self._service_key(config.service),
-                    config.profile,
-                    config.version,
-                    row["subscription_ref"],
-                ),
-            )
 
     @staticmethod
     def _dt(value: datetime | None) -> str | None:
