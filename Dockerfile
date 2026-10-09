@@ -9,7 +9,8 @@ WORKDIR /app
 # setuptools_scm needs the repository metadata and its release tags.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* && \
+    git config --global core.autocrlf true
 
 COPY . .
 
