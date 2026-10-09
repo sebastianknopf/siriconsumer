@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -6,48 +6,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# setuptools_scm needs the repository metadata and its release tags.
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends git \
+    && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the complete repository, including .git.
-# Make sure .git is NOT excluded by .dockerignore.
-COPY . /app
+COPY . .
 
-# Git refuses repositories whose directory ownership does not match
-# the executing user. Docker COPY/chown combinations can trigger this.
+# Install from the Git checkout so setuptools_scm can derive the package version.
 RUN git config --global --add safe.directory /app \
-    && git config --global core.autocrlf true
+    && python -m pip install --no-cache-dir .
 
-# Fail early with a useful error if the Git metadata is incomplete.
-RUN git rev-parse --verify HEAD \
-    && git describe --tags --always --dirty
+RUN mkdir -p /app/state /app/output /var/log/siri
 
-RUN python -m pip install --upgrade pip build \
-    && python -m build --wheel
-
-
-FROM python:3.12-slim AS runtime
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
-
-WORKDIR /app
-
-RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/state /app/output /var/log/siri \
-    && chown -R appuser:appuser /app /var/log/siri
-
-COPY --from=builder /app/dist/*.whl /tmp/
-
-RUN pip install /tmp/*.whl \
-    && rm -f /tmp/*.whl
-
-USER appuser
-
-VOLUME ["/app/state", "/app/output", "/var/log/siri"]
-
+# Run as the image's default user to support ordinary Linux bind mounts.
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

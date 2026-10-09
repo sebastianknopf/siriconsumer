@@ -10,3 +10,5 @@ state
 data
 *.db
 .env
+# setuptools_scm must regenerate this file for the checked-out commit.
+src/siriconsumer/version.py
