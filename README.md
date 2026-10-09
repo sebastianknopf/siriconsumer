@@ -66,13 +66,7 @@ docker build -t siriconsumer:local .
 Run the locally built image:
 
 ```bash
-docker run --name siriconsumer \
-  -p 8080:8080 \
-  -v "$(pwd)/state:/app/state" \
-  -v "$(pwd)/output:/app/output" \
-  -v "$(pwd)/log/siri:/var/log/siri" \
-  --restart unless-stopped \
-  siriconsumer:local
+docker run --name siriconsumer -p 8080:8080 -v "$(pwd)/state:/app/state" -v "$(pwd)/output:/app/output" -v "$(pwd)/log/siri:/var/log/siri" --restart unless-stopped siriconsumer:local
 ```
 
 Or build and start the local checkout with the standard Compose file:
