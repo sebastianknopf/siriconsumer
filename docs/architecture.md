@@ -44,7 +44,7 @@ The profile registry selects protocol behavior per subscription. `default` conta
 
 ### SIRI Receive API
 
-Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. When the per-subscription spool is full, DirectDelivery applies bounded HTTP backpressure and returns 503 only if capacity does not become available before the configured throttle timeout. Fetched delivery notifications schedule a fetch operation, and `MoreData=true` responses trigger additional bounded `DataSupplyRequest` calls.
+Receives `ServiceDelivery`, `DataReadyNotification`, and heartbeat/status related messages. Direct delivery payloads are durably spooled before an acknowledgement is returned. When the per-subscription spool is full, DirectDelivery applies bounded HTTP backpressure and returns 503 only if capacity does not become available before the configured throttle timeout. Fetched delivery notifications schedule a fetch operation, and `MoreData=true` responses trigger additional bounded `DataSupplyRequest` calls. The default SIRI profile is received at `/`. VDV callbacks use `/{producer_ref}/{VDV-service}/{action}.xml`; the transport route maps the VDV service to a SIRI service code, resolves the matching subscriptions from indexed SQLite routing columns, and only then selects the persisted profile/version from the profile registry. This keeps endpoint recognition independent from profile-specific XML parsing.
 
 ### Per-Subscription Communication Logging
 

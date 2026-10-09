@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import aiosqlite
 
@@ -15,12 +16,18 @@ class SqliteSubscriptionRepository:
         self._database_path = database_path
 
     async def initialize(self) -> None:
+        Path(self._database_path).parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self._database_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS subscriptions (
                     subscription_ref TEXT PRIMARY KEY,
+                    subscriber_ref TEXT,
+                    producer_ref TEXT,
+                    service TEXT,
+                    profile TEXT,
+                    version TEXT,
                     config_json TEXT NOT NULL,
                     status TEXT NOT NULL,
                     last_heartbeat_at TEXT,
@@ -31,6 +38,14 @@ class SqliteSubscriptionRepository:
                     last_error TEXT
                 )
                 """
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_subscriptions_producer_service "
+                "ON subscriptions(producer_ref, service)"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_subscriptions_profile_service "
+                "ON subscriptions(profile, version, service)"
             )
             await db.commit()
 
@@ -43,9 +58,10 @@ class SqliteSubscriptionRepository:
                 await db.execute(
                     """
                     INSERT INTO subscriptions (
-                        subscription_ref, config_json, status, last_heartbeat_at, last_message_at,
+                        subscription_ref, subscriber_ref, producer_ref, service, profile, version,
+                        config_json, status, last_heartbeat_at, last_message_at,
                         last_service_started_time, created_at, updated_at, last_error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     self._record_values(record),
                 )
@@ -81,15 +97,20 @@ class SqliteSubscriptionRepository:
     async def list_by_profile_service(
         self, profile: str, version: str, service: str
     ) -> list[SubscriptionRecord]:
-        records = await self.list_all()
-        service_key = service.strip().upper().replace("_", "-")
-        return [
-            record
-            for record in records
-            if record.config.profile == profile
-            and record.config.version == version
-            and record.config.service.strip().upper().replace("_", "-") == service_key
-        ]
+        return await self._query(
+            "SELECT * FROM subscriptions WHERE profile = ? AND version = ? AND service = ? "
+            "ORDER BY created_at",
+            (profile, version, self._service_key(service)),
+        )
+
+    async def list_by_producer_service(
+        self, producer_ref: str, service: str
+    ) -> list[SubscriptionRecord]:
+        return await self._query(
+            "SELECT * FROM subscriptions WHERE producer_ref = ? AND service = ? "
+            "ORDER BY created_at",
+            (producer_ref, self._service_key(service)),
+        )
 
     async def delete(self, subscription_ref: str) -> None:
         async with aiosqlite.connect(self._database_path) as db:
@@ -191,6 +212,11 @@ class SqliteSubscriptionRepository:
     def _record_values(self, record: SubscriptionRecord) -> tuple[object, ...]:
         return (
             record.config.subscription_ref,
+            record.config.subscriber_ref,
+            record.config.producer_ref,
+            self._service_key(record.config.service),
+            record.config.profile,
+            record.config.version,
             self._serialize_config(record.config),
             record.status.value,
             self._dt(record.last_heartbeat_at),
@@ -200,6 +226,10 @@ class SqliteSubscriptionRepository:
             self._dt(record.updated_at),
             record.last_error,
         )
+
+    @staticmethod
+    def _service_key(service: str) -> str:
+        return service.strip().upper().replace("_", "-")
 
     @staticmethod
     def _dt(value: datetime | None) -> str | None:

@@ -27,21 +27,21 @@ The public API always uses SIRI service names. The profile maps them internally:
 
 ## Consumer Callback URL
 
-The VDV-specific part of the generic profile URL follows:
+VDV callbacks use the standard VDV URL shape:
 
 ```text
-/profile/de-vdv/2/{producer_ref}/{VDV-service}/{action}.xml
+/{producer_ref}/{VDV-service}/{action}.xml
 ```
 
 Examples:
 
 ```text
-POST /profile/de-vdv/2/PRODUCER/AUS/datenbereit.xml
-POST /profile/de-vdv/2/PRODUCER/AUS/clientstatus.xml
-POST /profile/de-vdv/2/PRODUCER/VIS/datenbereit.xml
+POST /PRODUCER/AUS/datenbereit.xml
+POST /PRODUCER/AUS/clientstatus.xml
+POST /PRODUCER/VIS/datenbereit.xml
 ```
 
-The VDV service in the callback path is mapped back to the SIRI service code stored in the subscription. Multiple subscriptions may share the same `producer_ref` and service; a matching data-ready callback schedules each matching subscription.
+The VDV service in the callback path is mapped back to the SIRI service code stored in the subscription. The consumer then loads the matching subscriptions by `(producer_ref, service)` and obtains `profile` and `version` from their persisted routing columns. Multiple subscriptions may share the same endpoint and a matching data-ready callback schedules each of them. The endpoint may not simultaneously be used by another `de-vdv` version; such a subscription creation is rejected with HTTP 409.
 
 ## Publisher URLs
 

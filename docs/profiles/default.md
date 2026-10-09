@@ -13,12 +13,6 @@ Publisher callbacks are received at:
 POST /
 ```
 
-The explicit equivalent is:
-
-```text
-POST /profile/default/default
-```
-
 ## Publisher URL
 
 `provider_url` is used directly for subscription, termination, status, and fetched-delivery requests. The profile does not append action-specific path components.

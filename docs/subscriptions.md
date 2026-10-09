@@ -25,7 +25,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `delivery_mode` | Delivery mode used by the subscription. | `"direct"`, `"fetched"` |
 | `requestor_ref` | Identifier of the requesting consumer. Profiles may map this to their corresponding consumer/sender identifier. | `"MY-CONSUMER"` |
 | `subscriber_ref` | SIRI subscriber reference. It remains a generic subscription field even when a selected profile does not use it. | `"MY-SUBSCRIBER"` |
-| `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER-LEIPZIG"` |
+| `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER"` |
 | `subscription_ref` | Unique subscription identity inside the consumer. It is also used as the protocol subscription identifier where the selected profile maps it accordingly. | `"et-001"` |
 | `request_timestamp` | Optional request timestamp. When omitted, the profile can generate the appropriate current timestamp. | `"2026-09-18T18:30:00Z"` |
 | `consumer_address` | Optional externally reachable consumer callback URL. | `"https://consumer.example/"` |
@@ -138,6 +138,8 @@ For profile-specific values inside `parameters`, consult the corresponding profi
 Every subscription has independent `profile` and `version` fields. Both default to `default`, preserving the existing standard SIRI behavior. A concrete protocol implementation is selected by the `(profile, version)` pair, so incompatible generations such as `de-vdv` version `2` and `de-vdv` version `3.1` can coexist. Profile-specific validation happens before a new subscription is persisted. See `docs/profiles.md`.
 
 The `service` field always uses SIRI service codes at the public API boundary, even for non-default profiles. The optional generic `producer_ref` identifies the remote producer where a profile needs an agreed producer identity; `de-vdv` versions `2` and `3.1` require it for callback routing.
+
+SQLite stores `subscriber_ref`, `producer_ref`, `service`, `profile`, and `version` as dedicated routing columns in addition to the durable JSON configuration. Existing databases are migrated and backfilled during initialization. For `de-vdv`, `(producer_ref, service)` identifies the inbound VDV endpoint. Any number of subscriptions may share that endpoint as long as they use the same `profile` and `version`; binding the same endpoint to another VDV version is rejected with HTTP 409. This routing constraint does not apply to the default SIRI profile.
 
 ## Communication Logging
 

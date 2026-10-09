@@ -144,3 +144,73 @@ async def test_status_update_does_not_overwrite_runtime_timestamps(tmp_path) -> 
     assert loaded.last_message_at == message_at
     assert loaded.last_heartbeat_at == heartbeat_at
     assert loaded.last_service_started_time == service_started_time
+
+
+def _vdv_config(subscription_ref: str, version: str = "3.1") -> SubscriptionCreate:
+    parameters = {
+        "hysteresis": "PT30S",
+        "previewTime": "PT2H",
+    }
+    return SubscriptionCreate.model_validate(
+        {
+            "provider_url": "https://publisher.example/vdv",
+            "profile": "de-vdv",
+            "version": version,
+            "service": "ET",
+            "delivery_mode": "fetched",
+            "requestor_ref": "consumer",
+            "subscriber_ref": "subscriber-a",
+            "producer_ref": "producer-a",
+            "subscription_ref": subscription_ref,
+            "initial_termination_time": "2026-12-01T00:00:00Z",
+            "parameters": parameters if version == "3.1" else {},
+            "sink": {"type": "directory", "path": "/tmp/output"},
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_routing_columns_are_persisted_and_queryable(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+    await repository.create(_vdv_config("vdv-1"))
+
+    async with aiosqlite.connect(database_path) as db:
+        cursor = await db.execute(
+            "SELECT subscriber_ref, producer_ref, service, profile, version "
+            "FROM subscriptions WHERE subscription_ref = ?",
+            ("vdv-1",),
+        )
+        row = await cursor.fetchone()
+
+    assert row == ("subscriber-a", "producer-a", "ET", "de-vdv", "3.1")
+    matches = await repository.list_by_producer_service("producer-a", "ET")
+    assert [record.config.subscription_ref for record in matches] == ["vdv-1"]
+
+
+@pytest.mark.asyncio
+async def test_initialize_creates_complete_routing_schema_on_fresh_database(tmp_path) -> None:
+    database_path = tmp_path / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+    await repository.initialize()
+
+    async with aiosqlite.connect(database_path) as db:
+        cursor = await db.execute("PRAGMA table_info(subscriptions)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+    assert {"subscription_ref", "subscriber_ref", "producer_ref", "service", "profile", "version"} <= columns
+    await repository.create(_vdv_config("fresh-vdv"))
+    matches = await repository.list_by_producer_service("producer-a", "ET")
+    assert [record.config.subscription_ref for record in matches] == ["fresh-vdv"]
+
+
+@pytest.mark.asyncio
+async def test_initialize_creates_missing_database_parent_directories(tmp_path) -> None:
+    database_path = tmp_path / "new" / "nested" / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+
+    await repository.initialize()
+
+    assert database_path.is_file()
+    assert await repository.list_all() == []

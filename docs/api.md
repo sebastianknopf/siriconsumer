@@ -10,7 +10,7 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 
 ## Endpoints
 
-- `POST /api/subscriptions` creates and activates a subscription. The optional `logging` flag defaults to `false`; when enabled, XML requests and responses for that subscription are persisted as described in `communication-logging.md`. The optional `parameters` object carries profile-specific values and defaults to `{}`. `subscription_ref` must be globally unique in the local database; duplicate refs are rejected with HTTP 400.
+  - `POST /api/subscriptions` creates and activates a subscription. The optional `logging` flag defaults to `false`; when enabled, XML requests and responses for that subscription are persisted as described in `communication-logging.md`. The optional `parameters` object carries profile-specific values and defaults to `{}`. `subscription_ref` must be globally unique in the local database; duplicate refs are rejected with HTTP 400. For `de-vdv`, an existing `(producer_ref, service)` endpoint may have multiple subscriptions, but all of them must use the same profile/version; attempts to bind the endpoint to another version are rejected with HTTP 409.
 - `GET /api/subscriptions` lists persisted subscriptions.
 - `GET /api/profiles` lists registered communication profiles, their specification target, supported service codes, and the profile-specific `parameters` keys supported per service.
 - `GET /api/subscriptions/{subscription_ref}` returns one subscription.
@@ -20,7 +20,7 @@ Swagger UI is exposed at `/api/swagger`. The raw OpenAPI document is exposed at 
 - `GET /health/ready` checks local persistence readiness.
 
 - `POST /` receives callbacks for the `default` SIRI profile.
-- `POST /profile/{profileId}/{version}/{path...}` receives callbacks for an explicitly selected profile/version pair. For `de-vdv` versions `2` and `3.1`, paths follow `{producer_ref}/{VDV-service}/{action}.xml`, for example `PRODUCER-LEIPZIG/AUS/datenbereit.xml`. The VDV service is mapped to the SIRI service code used by the subscription API.
+- `POST /{producer_ref}/{VDV-service}/{action}.xml` receives VDV callbacks, for example `POST /PRODUCER/AUS/datenbereit.xml`. The VDV service is mapped to the SIRI service code, then `(producer_ref, service)` is used to load the matching `de-vdv` subscriptions and their persisted profile version. Multiple subscriptions may share the endpoint, but they must all use the same `de-vdv` version. A conflicting subscription creation is rejected with HTTP 409.
 
 `POST /` receives SIRI publisher callbacks. DirectDelivery waits for per-subscription spool capacity for up to `SIRI_DIRECT_DELIVERY_THROTTLE_TIMEOUT_SECONDS`; if capacity remains exhausted, the endpoint returns HTTP 503 so the publisher can retry. While subscription termination is in progress, new DirectDelivery callbacks return HTTP 410 and do not enter the spool. A DirectDelivery callback admitted before termination is allowed to finish and no longer expires on the normal throttle timeout once termination begins. Once the SQLite subscription row has been physically deleted, later callbacks for that ref return HTTP 404. Recreating the same `subscription_ref` reopens delivery admission.
 

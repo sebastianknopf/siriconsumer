@@ -66,13 +66,7 @@ docker build -t siriconsumer:local .
 Run the locally built image:
 
 ```bash
-docker run --name siriconsumer \
-  -p 8080:8080 \
-  -v "$(pwd)/state:/app/state" \
-  -v "$(pwd)/output:/app/output" \
-  -v "$(pwd)/log/siri:/var/log/siri" \
-  --restart unless-stopped \
-  siriconsumer:local
+docker run --name siriconsumer -p 8080:8080 -v "$(pwd)/state:/app/state" -v "$(pwd)/output:/app/output" -v "$(pwd)/log/siri:/var/log/siri" --restart unless-stopped siriconsumer:local
 ```
 
 Or build and start the local checkout with the standard Compose file:
@@ -186,7 +180,7 @@ The spool never evicts an older accepted message to admit a newer one. DirectDel
 
 Subscriptions use the `default` profile unless `profile` is explicitly set. The default profile preserves the existing standard SIRI behavior and `/consumer` callback endpoint. Versioned profiles can provide different XML dialects, URL rules, and inbound callback semantics without changing the spool or sink pipeline.
 
-The `de-vdv` profile supports version `2` (VDV 453 2.6.1 / VDV 454 2.2.1, common V2017e schema) and version `3.1` (VDV 453/454 3.1.0, common `VDV453_incl_454_V3.1.0_v12` schema). Subscriptions can carry generic `parameters` and `filters` interpreted by the selected profile. Both VDV versions use fetched delivery and action-specific publisher URLs such as `aboverwalten.xml`, `status.xml`, and `datenabrufen.xml`. The public API always uses SIRI service codes; profiles map them internally. VDV callbacks are routed as `/profile/de-vdv/{version}/{producer_ref}/{VDV-service}/{action}.xml`. See [`docs/profiles.md`](docs/profiles.md) for the profile routing model and links to the individual profile documentation.
+The `de-vdv` profile supports version `2` (VDV 453 2.6.1 / VDV 454 2.2.1, common V2017e schema) and version `3.1` (VDV 453/454 3.1.0, common `VDV453_incl_454_V3.1.0_v12` schema). Subscriptions can carry generic `parameters` and `filters` interpreted by the selected profile. Both VDV versions use fetched delivery and action-specific publisher URLs such as `aboverwalten.xml`, `status.xml`, and `datenabrufen.xml`. The public API always uses SIRI service codes; profiles map them internally. VDV callbacks use the standard `/{producer_ref}/{VDV-service}/{action}.xml` shape. The consumer resolves the matching subscriptions by producer/service and loads the persisted profile/version; multiple subscriptions may share an endpoint, but the endpoint cannot mix VDV profile versions. See [`docs/profiles.md`](docs/profiles.md) for the profile routing model and links to the individual profile documentation.
 
 ## License
 

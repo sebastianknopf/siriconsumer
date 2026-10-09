@@ -13,6 +13,7 @@ from siriconsumer.interfaces.intf_delivery_admission import (
 )
 from siriconsumer.services.delivery_admission import DeliveryAdmissionController
 from siriconsumer.services.subscription_manager import SubscriptionManager
+from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRoutingConflictError
 
 
 def _config(subscription_ref: str = "sub-1") -> SubscriptionCreate:
@@ -50,6 +51,16 @@ class FakeRepository:
         if await self.get(subscription_ref) is None:
             raise KeyError(subscription_ref)
         self.record = None
+
+    async def list_by_producer_service(
+        self, producer_ref: str, service: str
+    ) -> list[SubscriptionRecord]:
+        if self.record is None:
+            return []
+        config = self.record.config
+        if config.producer_ref == producer_ref and config.service == service:
+            return [self.record]
+        return []
 
 
 class FakeSiriClient:
@@ -249,3 +260,43 @@ async def test_missing_mtls_files_mark_subscription_failed(tmp_path) -> None:
     assert repository.record is not None
     assert repository.record.status is SubscriptionStatus.FAILED
     assert "Configured mTLS file" in (repository.record.last_error or "")
+
+
+def _vdv_config(subscription_ref: str, version: str) -> SubscriptionCreate:
+    return SubscriptionCreate.model_validate(
+        {
+            "provider_url": "https://publisher.example/vdv",
+            "profile": "de-vdv",
+            "version": version,
+            "service": "ET",
+            "delivery_mode": "fetched",
+            "requestor_ref": "consumer",
+            "subscriber_ref": "subscriber",
+            "producer_ref": "producer-a",
+            "subscription_ref": subscription_ref,
+            "initial_termination_time": "2026-12-01T00:00:00Z",
+            "parameters": {"hysteresis": "PT30S", "previewTime": "PT2H"},
+            "sink": {"type": "directory", "path": "/tmp/output"},
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_vdv_route_rejects_different_version_for_same_producer_service() -> None:
+    repository = FakeRepository(SubscriptionRecord(config=_vdv_config("old", "2")))
+    manager = SubscriptionManager(
+        repository, FakeSiriClient(), FakeSpool(), FakeSinkFactory(), DeliveryAdmissionController()
+    )  # type: ignore[arg-type]
+
+    with pytest.raises(SubscriptionRoutingConflictError, match="already bound"):
+        await manager._validate_vdv_route(_vdv_config("new", "3.1"))
+
+
+@pytest.mark.asyncio
+async def test_vdv_route_allows_multiple_subscriptions_on_same_profile_version() -> None:
+    repository = FakeRepository(SubscriptionRecord(config=_vdv_config("old", "3.1")))
+    manager = SubscriptionManager(
+        repository, FakeSiriClient(), FakeSpool(), FakeSinkFactory(), DeliveryAdmissionController()
+    )  # type: ignore[arg-type]
+
+    await manager._validate_vdv_route(_vdv_config("new", "3.1"))

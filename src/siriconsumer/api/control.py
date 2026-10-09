@@ -5,7 +5,10 @@ from typing import Annotated
 
 from siriconsumer.api.dependencies import AppServices
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
-from siriconsumer.interfaces.intf_subscription_repository import SubscriptionAlreadyExistsError
+from siriconsumer.interfaces.intf_subscription_repository import (
+    SubscriptionAlreadyExistsError,
+    SubscriptionRoutingConflictError,
+)
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 
@@ -20,6 +23,8 @@ async def create_subscription(config: SubscriptionCreate, request: Request) -> S
         return await _services(request).subscription_manager.create(config)
     except SubscriptionAlreadyExistsError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SubscriptionRoutingConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

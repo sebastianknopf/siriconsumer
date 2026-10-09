@@ -11,6 +11,10 @@ class SubscriptionAlreadyExistsError(ValueError):
     """Raised when a subscription_ref already exists in durable storage."""
 
 
+class SubscriptionRoutingConflictError(ValueError):
+    """Raised when an inbound endpoint is already bound to another profile/version."""
+
+
 class SubscriptionRepository(Protocol):
     async def initialize(self) -> None: ...
 
@@ -26,6 +30,10 @@ class SubscriptionRepository(Protocol):
 
     async def list_by_profile_service(
         self, profile: str, version: str, service: str
+    ) -> list[SubscriptionRecord]: ...
+
+    async def list_by_producer_service(
+        self, producer_ref: str, service: str
     ) -> list[SubscriptionRecord]: ...
 
     async def delete(self, subscription_ref: str) -> None: ...

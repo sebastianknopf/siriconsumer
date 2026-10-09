@@ -10,7 +10,10 @@ from siriconsumer.interfaces.intf_sink_factory import SinkFactory
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_spool import DurableSpool
 from siriconsumer.profiles.registry import ProfileRegistry
-from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
+from siriconsumer.interfaces.intf_subscription_repository import (
+    SubscriptionRepository,
+    SubscriptionRoutingConflictError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +38,45 @@ class SubscriptionManager:
 
     async def create(self, config: SubscriptionCreate) -> SubscriptionRecord:
         self._profile_registry.get(config.profile, config.version).validate_subscription(config)
+
+        if config.profile == "de-vdv":
+            assert config.producer_ref is not None
+            route_key = f"vdv-route:{config.producer_ref}:{self._service_key(config.service)}"
+            async with self._lock(route_key):
+                await self._validate_vdv_route(config)
+                return await self._create_and_activate(config)
+
+        return await self._create_and_activate(config)
+
+    async def _create_and_activate(self, config: SubscriptionCreate) -> SubscriptionRecord:
         record = await self._repository.create(config)
         await self._delivery_admission.reopen(config.subscription_ref)
         await self._activate(record)
         return await self._require(config.subscription_ref)
+
+    async def _validate_vdv_route(self, config: SubscriptionCreate) -> None:
+        assert config.producer_ref is not None
+        existing = await self._repository.list_by_producer_service(
+            config.producer_ref, config.service
+        )
+        conflicting = [
+            record
+            for record in existing
+            if record.config.profile == "de-vdv"
+            and (record.config.profile, record.config.version)
+            != (config.profile, config.version)
+        ]
+        if conflicting:
+            current = conflicting[0].config
+            raise SubscriptionRoutingConflictError(
+                "VDV inbound endpoint "
+                f"({config.producer_ref}, {self._service_key(config.service)}) is already bound "
+                f"to profile '{current.profile}' version '{current.version}'"
+            )
+
+    @staticmethod
+    def _service_key(service: str) -> str:
+        return service.strip().upper().replace("_", "-")
 
     async def terminate(
         self, subscription_ref: str, *, force: bool = False, spool: bool = True
