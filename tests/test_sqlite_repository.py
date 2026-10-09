@@ -203,3 +203,14 @@ async def test_initialize_creates_complete_routing_schema_on_fresh_database(tmp_
     await repository.create(_vdv_config("fresh-vdv"))
     matches = await repository.list_by_producer_service("producer-a", "ET")
     assert [record.config.subscription_ref for record in matches] == ["fresh-vdv"]
+
+
+@pytest.mark.asyncio
+async def test_initialize_creates_missing_database_parent_directories(tmp_path) -> None:
+    database_path = tmp_path / "new" / "nested" / "subscriptions.db"
+    repository = SqliteSubscriptionRepository(str(database_path))
+
+    await repository.initialize()
+
+    assert database_path.is_file()
+    assert await repository.list_all() == []

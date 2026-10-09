@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import aiosqlite
 
@@ -15,6 +16,7 @@ class SqliteSubscriptionRepository:
         self._database_path = database_path
 
     async def initialize(self) -> None:
+        Path(self._database_path).parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self._database_path) as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
