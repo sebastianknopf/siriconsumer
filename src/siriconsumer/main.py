@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
     )
 
     provider_monitor = ProviderMonitor(
-        settings, repository, siri_client, subscription_manager
+        settings, repository, siri_client, subscription_manager, fetched_delivery_service
     )
 
     sink_workers = SinkWorkerPool(settings, spool, repository, sink_factory)

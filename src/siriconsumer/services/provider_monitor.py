@@ -10,6 +10,7 @@ from siriconsumer.domain.exceptions import MtlsCertificateFileError
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 from siriconsumer.services.subscription_manager import SubscriptionManager
+from siriconsumer.services.fetched_delivery_service import FetchedDeliveryService
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +22,13 @@ class ProviderMonitor:
         repository: SubscriptionRepository,
         siri_client: SiriClient,
         subscription_manager: SubscriptionManager,
+        fetched_delivery_service: FetchedDeliveryService | None = None,
     ) -> None:
         self._settings = settings
         self._repository = repository
         self._siri_client = siri_client
         self._subscription_manager = subscription_manager
+        self._fetched_delivery_service = fetched_delivery_service
         self._task: asyncio.Task[None] | None = None
         self._provider_recovery_locks: dict[str, asyncio.Lock] = {}
 
@@ -112,6 +115,9 @@ class ProviderMonitor:
                         exc_info=True,
                     )
                     continue
+
+                if status.healthy and status.data_ready and self._fetched_delivery_service is not None:
+                    await self._fetched_delivery_service.schedule(record.config.subscription_ref)
 
                 if status.service_started_time is not None:
                     if (

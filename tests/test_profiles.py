@@ -427,3 +427,26 @@ def test_all_vdv_services_and_actions_follow_standard_url(profile_class, service
     config = _vdv_config(service).model_copy(update={"subscriber_ref": "Client/West"})
     endpoint = profile_class().resolve_endpoint(action, SubscriptionRecord(config=config))
     assert endpoint == f"https://publisher.example/vdv/aus/Client%2FWest/{vdv_service}/{filename}"
+
+
+
+def test_status_data_ready_flags_for_all_profiles() -> None:
+    from siriconsumer.profiles.default import DefaultSiriProfile
+    from siriconsumer.profiles.de_vdv_2 import GermanVdv2Profile
+    from siriconsumer.profiles.de_vdv_31 import GermanVdv31Profile
+
+    for profile in (GermanVdv2Profile(), GermanVdv31Profile()):
+        assert profile.parse_provider_status(
+            b'<StatusAntwort><Status Ergebnis="ok"/><DatenBereit>true</DatenBereit></StatusAntwort>'
+        ).data_ready
+        assert not profile.parse_provider_status(
+            b'<StatusAntwort><Status Ergebnis="ok"/><DatenBereit>false</DatenBereit></StatusAntwort>'
+        ).data_ready
+
+    siri = DefaultSiriProfile()
+    assert siri.parse_provider_status(
+        b'<Siri><CheckStatusResponse><Status>true</Status><DataReady>true</DataReady></CheckStatusResponse></Siri>'
+    ).data_ready
+    assert not siri.parse_provider_status(
+        b'<Siri><CheckStatusResponse><Status>true</Status></CheckStatusResponse></Siri>'
+    ).data_ready

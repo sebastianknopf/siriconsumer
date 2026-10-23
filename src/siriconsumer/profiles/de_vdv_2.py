@@ -179,6 +179,10 @@ class GermanVdv2Profile(CommunicationProfile):
 
         return ProviderStatus(
             healthy=healthy,
+            data_ready=any(
+                (node.text or "").strip().lower() in {"true", "1"}
+                for node in root.xpath("//*[local-name()='DatenBereit']")
+            ),
             service_started_time=first_datetime(root, "StartDienstZst"),
         )
 

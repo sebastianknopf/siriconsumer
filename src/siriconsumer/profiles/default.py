@@ -175,6 +175,7 @@ class DefaultSiriProfile(CommunicationProfile):
         healthy = status_text is None or status_text.lower() in {"true", "1"}
         return ProviderStatus(
             healthy=healthy,
+            data_ready=(first_text(root, "DataReady") or "").strip().lower() in {"true", "1"},
             service_started_time=first_datetime(root, "ServiceStartedTime"),
         )
 

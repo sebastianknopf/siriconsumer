@@ -158,6 +158,10 @@ class GermanVdv31Profile(CommunicationProfile):
         result = nodes[0].get("Ergebnis") if nodes else None
         return ProviderStatus(
             healthy=result is not None and result.strip().lower() == "ok",
+            data_ready=any(
+                (node.text or "").strip().lower() in {"true", "1"}
+                for node in root.xpath("//*[local-name()='DatenBereit']")
+            ),
             service_started_time=first_datetime(root, "StartDienstZst"),
         )
 
