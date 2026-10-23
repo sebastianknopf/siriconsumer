@@ -142,7 +142,7 @@ src/siriconsumer/version.py
   "version": "default",
   "service": "VM",
   "delivery_mode": "direct",
-  "requestor_ref": "consumer-a",
+
   "producer_ref": "producer-a",
   "subscription_ref": "vm-example",
   "consumer_address": "http://siriconsumer:8080/",

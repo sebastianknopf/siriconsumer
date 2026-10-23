@@ -67,10 +67,10 @@ Optional: one `filters.lines` entry and one `filters.directions` entry.
 
 ### CM / ANS
 
-Required: `parameters.asbId`, `parameters.hysteresis` and exactly one filter mode:
+Required: `parameters.asbId` and exactly one filter mode:
 
-- `parameters.timeFilter`: one object containing required `earliestArrivalTime` and `latestArrivalTime`, plus optional `previewTime`. Optional line and direction restrictions are supplied through `filters.lines` and `filters.directions`.
-- `parameters.journeyFilters`: one or more objects containing `journeyRef`, `operatingDay`, `stopSequenceCounter`, `plannedArrivalTime` and `previewTime`.
+- `parameters.timeFilter`: one object containing required `earliestArrivalTime` and `latestArrivalTime`, with preview duration supplied by `preview_interval`. Optional line and direction restrictions are supplied through `filters.lines` and `filters.directions`.
+- `parameters.journeyFilters`: one or more objects containing `journeyRef`, `operatingDay`, `stopSequenceCounter`, `plannedArrivalTime`; preview duration is supplied by `preview_interval`.
 
 The two modes cannot be combined in one subscription.
 
@@ -82,7 +82,7 @@ Optional `filters.lines` and `filters.directions` restrict the requested lines/d
 
 ### SM / DFI
 
-Required: `parameters.azbId`, `parameters.previewTime`, `parameters.hysteresis`.
+Required: `parameters.azbId`.
 
 Optional: `parameters.maxJourneys`, `parameters.maxTextLength`, `parameters.onlyUpdates`, plus `filters.lines` and `filters.directions`.
 
@@ -100,7 +100,7 @@ Optional: `parameters.includeGuaranteedConnections`, `parameters.includeAddition
 
 ### ET / AUS
 
-Required: `parameters.hysteresis`, `parameters.previewTime`.
+No service-specific parameters are required. Hysterese and Vorschauzeit use generic `change_before_updates` and `preview_interval`.
 
 Optional: `parameters.includeGuaranteedConnections`, `parameters.includeRealTimes`, `parameters.includeFormation`, `parameters.onlyUpdates` and all generic VDV 3.1 filters.
 
@@ -113,7 +113,7 @@ Optional: `parameters.includeGuaranteedConnections`, `parameters.includeRealTime
   "version": "3.1",
   "service": "PT",
   "delivery_mode": "fetched",
-  "requestor_ref": "CONSUMER",
+
   "subscriber_ref": "CONSUMER",
   "producer_ref": "PRODUCER",
   "subscription_ref": "ref-aus-1",
@@ -134,3 +134,9 @@ Optional: `parameters.includeGuaranteedConnections`, `parameters.includeRealTime
 ```
 
 The generated `AboAnfrage` includes `XSDVersionID="VDV453_incl_454_V3.1.0_v12"`. Data fetches explicitly send `DatensatzAlle=false`, so normal polling retrieves updated data; the existing `WeitereDaten` loop continues fetching subsequent packages.
+
+## Outbound VDV URLs and generic intervals
+
+All outbound VDV requests use `{provider_url}/{subscriber_ref}/{action}.xml`, including subscription management, status checks, termination and data fetching. `subscriber_ref` is the VDV `Sender`; the remote system uses `producer_ref` for inbound callbacks.
+
+`change_before_updates` is mapped to VDV `Hysterese` in **whole seconds**. `preview_interval` is mapped to VDV `Vorschauzeit` in **whole minutes**. Both fields use ISO-8601 durations, for example `PT30S` and `PT2H`. Non-integral target units are rejected for applicable services. Per-journey preview durations are taken from the generic `preview_interval`.

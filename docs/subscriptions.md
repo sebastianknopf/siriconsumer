@@ -23,8 +23,7 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `version` | Version of the selected communication profile. Defaults to `default`. | `"default"`, `"2"`, `"3.1"` |
 | `service` | SIRI service code exposed by the public API. Profiles map this code to their protocol-specific service where required. | `"ET"`, `"PT"`, `"VM"` |
 | `delivery_mode` | Delivery mode used by the subscription. | `"direct"`, `"fetched"` |
-| `requestor_ref` | Identifier of the requesting consumer. Profiles may map this to their corresponding consumer/sender identifier. | `"MY-CONSUMER"` |
-| `subscriber_ref` | SIRI subscriber reference. It remains a generic subscription field even when a selected profile does not use it. | `"MY-SUBSCRIBER"` |
+| `subscriber_ref` | Client identifier for SIRI RequestorRef/SubscriberRef and VDV Sender. | `"MY-SUBSCRIBER"` |
 | `producer_ref` | Optional identifier of the remote producer. Profiles can require it for routing or protocol-specific addressing. | `"PRODUCER"` |
 | `subscription_ref` | Unique subscription identity inside the consumer. It is also used as the protocol subscription identifier where the selected profile maps it accordingly. | `"et-001"` |
 | `request_timestamp` | Optional request timestamp. When omitted, the profile can generate the appropriate current timestamp. | `"2026-09-18T18:30:00Z"` |
@@ -69,7 +68,7 @@ The following example shows a complete request body for creating a standard SIRI
   "version": "default",
   "service": "ET",
   "delivery_mode": "direct",
-  "requestor_ref": "MY-CONSUMER",
+
   "subscriber_ref": "MY-SUBSCRIBER",
   "producer_ref": "MY-PRODUCER",
   "subscription_ref": "et-001",
@@ -225,3 +224,5 @@ notifications flow from publisher to consumer.
 should be used without active status polling. `timeout_seconds` controls how long an enabled
 heartbeat may be absent before publisher recovery is triggered after at least one heartbeat has
 been observed.
+
+VDV 2 and 3.1 send all outbound requests to `{provider_url}/{subscriber_ref}/{action}.xml`. For VDV 3.1, `change_before_updates` supplies Hysterese (seconds) and `preview_interval` supplies Vorschauzeit (minutes).
