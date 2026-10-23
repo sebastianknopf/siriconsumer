@@ -117,7 +117,7 @@ class GermanVdv31Profile(CommunicationProfile):
             self._validate_stop_filters(config)
 
     def resolve_endpoint(self, action: PublisherAction, subscription: SubscriptionRecord) -> str:
-        return f"{str(subscription.config.provider_url).rstrip('/')}/{quote(subscription.config.subscriber_ref, safe='')}/{ACTION_PATHS[action]}"
+        return f"{str(subscription.config.provider_url).rstrip('/')}/{quote(subscription.config.subscriber_ref, safe='')}/{VDV_SERVICE_NAMES[self._service_key(subscription.config.service)]}/{ACTION_PATHS[action]}"
 
     def build_subscription_request(self, subscription: SubscriptionRecord) -> bytes:
         config = subscription.config
