@@ -46,7 +46,8 @@ The following table describes the generic fields accepted by `POST /api/subscrip
 | `heartbeat.enabled` | Requests publisher heartbeat notifications where supported. Default: `true`. | `true`, `false` |
 | `heartbeat.interval` | Requested ISO-8601 heartbeat interval. Default: `PT1M`. | `"PT1M"`, `"PT30S"` |
 | `heartbeat.timeout_seconds` | Number of seconds without an expected heartbeat before recovery logic may be triggered. Default: `180`. | `180`, `300` |
-| `heartbeat.check_status_enabled` | Enables active status checks independently of heartbeat reception. Default: `true`. | `true`, `false` |
+| `status.enabled` | Enables active status requests independently of heartbeat reception. Default: `true`. | `true`, `false` |
+| `status.interval` | ISO-8601 duration between status-check attempts for this subscription. Default: `PT30S`; must be at least one second. | `PT30S`, `PT1M` |
 | `sink` | Sink configuration used for delivered payloads. Its structure depends on the selected sink type; see [Sinks](sinks.md). | `{"type": "directory", "path": "/data/incoming"}` |
 
 ### Outbound mTLS
@@ -113,8 +114,11 @@ The following example shows a complete request body for creating a standard SIRI
   "heartbeat": {
     "enabled": true,
     "interval": "PT1M",
-    "timeout_seconds": 180,
-    "check_status_enabled": true
+    "timeout_seconds": 180
+  },
+  "status": {
+    "enabled": true,
+    "interval": "PT30S"
   },
   "sink": {
     "type": "http",
@@ -219,9 +223,11 @@ ISO-8601 `interval` value. This asks the SIRI publisher to send `HeartbeatNotifi
 to the consumer. SIRI does not define a consumer-to-publisher `HeartbeatRequest`; heartbeat
 notifications flow from publisher to consumer.
 
-`check_status_enabled` independently controls whether the consumer sends active
+`status.enabled` independently controls whether the consumer sends active
 `CheckStatusRequest` messages for that subscription. Set it to `false` when publisher heartbeats
-should be used without active status polling. `timeout_seconds` controls how long an enabled
+should be used without active status polling. `status.interval` specifies the per-subscription
+polling interval (default: 30 seconds). Checks are attempted on a one-second scheduler; network
+latency and other subscriptions can increase the actual interval. `heartbeat.timeout_seconds` controls how long an enabled
 heartbeat may be absent before publisher recovery is triggered after at least one heartbeat has
 been observed.
 

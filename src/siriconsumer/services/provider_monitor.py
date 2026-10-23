@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 
 from siriconsumer.config import Settings
@@ -31,6 +32,7 @@ class ProviderMonitor:
         self._fetched_delivery_service = fetched_delivery_service
         self._task: asyncio.Task[None] | None = None
         self._provider_recovery_locks: dict[str, asyncio.Lock] = {}
+        self._next_status_check: dict[str, float] = {}
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._run(), name="provider-monitor")
@@ -80,11 +82,15 @@ class ProviderMonitor:
             except Exception:
                 logger.exception("Provider monitor iteration failed")
 
-            await asyncio.sleep(self._settings.provider_check_interval_seconds)
+            await asyncio.sleep(1)
 
     async def _check_all_providers(self) -> None:
         subscriptions = await self._repository.list_all()
         providers: dict[str, list] = {}
+        now = time.monotonic()
+        active_refs = {record.config.subscription_ref for record in subscriptions}
+        for ref in self._next_status_check.keys() - active_refs:
+            del self._next_status_check[ref]
         for record in subscriptions:
             providers.setdefault(str(record.config.provider_url), []).append(record)
 
@@ -92,8 +98,16 @@ class ProviderMonitor:
         for provider_url, records in providers.items():
             restart_detected = False
             for record in records:
-                if not record.config.heartbeat.check_status_enabled:
+                ref = record.config.subscription_ref
+                if not record.config.status.enabled:
+                    self._next_status_check.pop(ref, None)
                     continue
+                
+                if now < self._next_status_check.get(ref, 0):
+                    continue
+                
+                # Schedule the next attempt even if this request fails.
+                self._next_status_check[ref] = time.monotonic() + record.config.status.interval_seconds
                 try:
                     status = await self._siri_client.check_status(record)
                 except MtlsCertificateFileError as exc:

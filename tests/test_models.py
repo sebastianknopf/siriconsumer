@@ -20,8 +20,8 @@ def test_subscription_model_supports_filters_and_mqtt_sink() -> None:
                 "enabled": True,
                 "interval": "PT45S",
                 "timeout_seconds": 180,
-                "check_status_enabled": False,
             },
+            "status": {"enabled": False, "interval": "PT1M"},
             "sink": {
                 "type": "mqtt",
                 "hostname": "mqtt",
@@ -34,7 +34,9 @@ def test_subscription_model_supports_filters_and_mqtt_sink() -> None:
     assert model.filters.lines == ["10"]
     assert model.subscription_policy.update_interval == "PT30S"
     assert model.heartbeat.interval == "PT45S"
-    assert model.heartbeat.check_status_enabled is False
+    assert model.status.enabled is False
+    assert model.status.interval == "PT1M"
+    assert model.status.interval_seconds == 60
     assert model.sink.type == "mqtt"
 
 
@@ -91,3 +93,14 @@ def test_subscription_filters_keep_existing_shape_and_add_vdv31_extensions() -> 
     assert model.filters.products == ["Bus"]
     assert model.filters.vehicle_modes == ["NFB"]
     assert model.filters.stops[0][0].stop_id == "de:1:stop"
+
+
+def test_status_interval_rejects_invalid_and_short_durations() -> None:
+    import pytest
+    from pydantic import ValidationError
+    from siriconsumer.domain.models import StatusConfig
+
+    for interval in ("30", "PT0S", "PT0.5S", "invalid", "-PT1M"):
+        with pytest.raises(ValidationError):
+            StatusConfig(interval=interval)
+    assert StatusConfig(interval="PT2M").interval_seconds == 120
