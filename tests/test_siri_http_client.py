@@ -24,7 +24,7 @@ async def test_subscription_headers_are_sent_with_every_publisher_request() -> N
                 "provider_url": "https://publisher.example/siri",
                 "service": "VM",
                 "delivery_mode": "fetched",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "consumer",
                 "subscription_ref": "sub-1",
                 "headers": {
@@ -63,7 +63,7 @@ def test_subscription_request_contains_requested_heartbeat_interval() -> None:
                 "provider_url": "https://publisher.example/siri",
                 "service": "VM",
                 "delivery_mode": "direct",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "consumer",
                 "subscription_ref": "sub-heartbeat",
                 "heartbeat": {"enabled": True, "interval": "PT45S"},
@@ -85,7 +85,7 @@ def test_subscription_request_omits_heartbeat_context_when_disabled() -> None:
                 "provider_url": "https://publisher.example/siri",
                 "service": "VM",
                 "delivery_mode": "direct",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "consumer",
                 "subscription_ref": "sub-no-heartbeat",
                 "heartbeat": {"enabled": False},
@@ -133,7 +133,7 @@ async def test_vdv_profile_uses_action_specific_publisher_urls() -> None:
                 "version": "2",
                 "service": "ET",
                 "delivery_mode": "fetched",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "consumer",
                 "producer_ref": "producer-control-centre",
                 "subscription_ref": "abo-1",
@@ -156,10 +156,10 @@ async def test_vdv_profile_uses_action_specific_publisher_urls() -> None:
         await client.close()
 
     assert seen_paths == [
-        "/vdv/aus/aboverwalten.xml",
-        "/vdv/aus/status.xml",
-        "/vdv/aus/datenabrufen.xml",
-        "/vdv/aus/aboverwalten.xml",
+        "/vdv/aus/consumer/aboverwalten.xml",
+        "/vdv/aus/consumer/status.xml",
+        "/vdv/aus/consumer/datenabrufen.xml",
+        "/vdv/aus/consumer/aboverwalten.xml",
     ]
 
 
@@ -173,7 +173,7 @@ async def test_missing_mtls_file_fails_before_outbound_request(tmp_path) -> None
                 "provider_url": "https://publisher.example/siri",
                 "service": "VM",
                 "delivery_mode": "direct",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "consumer",
                 "subscription_ref": "sub-mtls-missing",
                 "mtls": {
@@ -228,7 +228,7 @@ async def test_http_endpoint_disables_server_certificate_verification_with_mtls(
                 "provider_url": "http://publisher.example/siri",
                 "service": "VM",
                 "delivery_mode": "direct",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "consumer",
                 "subscription_ref": "sub-http-mtls",
                 "mtls": {

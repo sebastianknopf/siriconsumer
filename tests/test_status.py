@@ -17,7 +17,7 @@ class RepositoryStub:
             "provider_url": "https://producer.example/siri",
             "service": "ET",
             "delivery_mode": "direct",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "consumer",
             "subscription_ref": "sub-1",
             "initial_termination_time": "2026-09-22T10:00:00Z",

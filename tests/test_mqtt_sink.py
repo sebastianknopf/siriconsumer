@@ -47,7 +47,7 @@ def _subscription(config: MqttSinkConfig) -> SubscriptionRecord:
                 "provider_url": "https://publisher.example/siri",
                 "service": "VM",
                 "delivery_mode": "direct",
-                "requestor_ref": "consumer",
+
                 "subscriber_ref": "subscriber",
                 "subscription_ref": "sub-1",
                 "sink": config.model_dump(),

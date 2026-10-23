@@ -22,7 +22,7 @@ def _config(subscription_ref: str = "sub-1") -> SubscriptionCreate:
             "provider_url": "https://publisher.example/siri",
             "service": "VM",
             "delivery_mode": "direct",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "consumer",
             "subscription_ref": subscription_ref,
             "sink": {"type": "directory", "path": "/tmp/output"},
@@ -270,7 +270,7 @@ def _vdv_config(subscription_ref: str, version: str) -> SubscriptionCreate:
             "version": version,
             "service": "ET",
             "delivery_mode": "fetched",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "subscriber",
             "producer_ref": "producer-a",
             "subscription_ref": subscription_ref,

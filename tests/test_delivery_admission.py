@@ -21,7 +21,7 @@ def _record(subscription_ref: str = "sub-1") -> SubscriptionRecord:
             "provider_url": "https://publisher.example/siri",
             "service": "VM",
             "delivery_mode": "direct",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "consumer",
             "subscription_ref": subscription_ref,
             "sink": {"type": "directory", "path": "/tmp/output"},

@@ -9,7 +9,7 @@ def test_subscription_model_supports_filters_and_mqtt_sink() -> None:
             "provider_url": "https://publisher.example/siri",
             "service": "VM",
             "delivery_mode": "direct",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "consumer",
             "subscription_ref": "sub-1",
             "consumer_address": "https://consumer.example/",
@@ -43,7 +43,7 @@ def test_mtls_requires_both_certificate_and_key_filenames() -> None:
         "provider_url": "https://publisher.example/siri",
         "service": "VM",
         "delivery_mode": "direct",
-        "requestor_ref": "consumer",
+
         "subscriber_ref": "consumer",
         "subscription_ref": "sub-mtls",
         "sink": {"type": "directory", "path": "/tmp/output"},
@@ -71,7 +71,7 @@ def test_subscription_filters_keep_existing_shape_and_add_vdv31_extensions() -> 
         "version": "3.1",
         "service": "ET",
         "delivery_mode": "fetched",
-        "requestor_ref": "consumer",
+
         "subscriber_ref": "consumer",
         "producer_ref": "producer",
         "subscription_ref": "sub-vdv31",
