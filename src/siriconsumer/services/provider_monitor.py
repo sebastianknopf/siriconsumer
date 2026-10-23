@@ -33,8 +33,11 @@ class ProviderMonitor:
         self._task: asyncio.Task[None] | None = None
         self._provider_recovery_locks: dict[str, asyncio.Lock] = {}
         self._next_status_check: dict[str, float] = {}
+        self._poll_lock = asyncio.Lock()
 
     async def start(self) -> None:
+        if self._task is not None and not self._task.done():
+            return
         self._task = asyncio.create_task(self._run(), name="provider-monitor")
 
     async def stop(self) -> None:
@@ -85,6 +88,11 @@ class ProviderMonitor:
             await asyncio.sleep(1)
 
     async def _check_all_providers(self) -> None:
+        # Serialize checks even if the monitor is invoked from multiple tasks.
+        async with self._poll_lock:
+            await self._check_all_providers_locked()
+
+    async def _check_all_providers_locked(self) -> None:
         subscriptions = await self._repository.list_all()
         providers: dict[str, list] = {}
         now = time.monotonic()

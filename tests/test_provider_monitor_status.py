@@ -39,3 +39,35 @@ async def test_status_polling_is_per_subscription_and_respects_enabled():
     await monitor._check_all_providers()
     assert client.check_status.await_count == 3
     assert client.check_status.await_args.args[0].config.subscription_ref == "fast"
+
+
+@pytest.mark.asyncio
+async def test_monitor_start_is_idempotent():
+    repository = SimpleNamespace(list_all=AsyncMock(return_value=[]))
+    monitor = ProviderMonitor(SimpleNamespace(), repository, SimpleNamespace(), SimpleNamespace())
+    await monitor.start()
+    first_task = monitor._task
+    await monitor.start()
+    assert monitor._task is first_task
+    await monitor.stop()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_checks_do_not_duplicate_status_request():
+    import asyncio
+    config = SubscriptionCreate.model_validate({
+        "provider_url": "https://provider.example/siri",
+        "service": "VM",
+        "delivery_mode": "direct",
+        "subscriber_ref": "client",
+        "subscription_ref": "only",
+        "status": {"enabled": True, "interval": "PT30S"},
+        "sink": {"type": "directory", "path": "/tmp/output"},
+    })
+    repository = SimpleNamespace(list_all=AsyncMock(return_value=[SubscriptionRecord(config=config)]))
+    client = SimpleNamespace(check_status=AsyncMock(return_value=SimpleNamespace(
+        healthy=True, data_ready=False, service_started_time=None
+    )))
+    monitor = ProviderMonitor(SimpleNamespace(), repository, client, SimpleNamespace())
+    await asyncio.gather(monitor._check_all_providers(), monitor._check_all_providers())
+    assert client.check_status.await_count == 1
