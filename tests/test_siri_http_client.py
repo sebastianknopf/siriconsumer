@@ -156,10 +156,10 @@ async def test_vdv_profile_uses_action_specific_publisher_urls() -> None:
         await client.close()
 
     assert seen_paths == [
-        "/vdv/aus/consumer/aboverwalten.xml",
-        "/vdv/aus/consumer/status.xml",
-        "/vdv/aus/consumer/datenabrufen.xml",
-        "/vdv/aus/consumer/aboverwalten.xml",
+        "/vdv/aus/consumer/AUS/aboverwalten.xml",
+        "/vdv/aus/consumer/AUS/status.xml",
+        "/vdv/aus/consumer/AUS/datenabrufen.xml",
+        "/vdv/aus/consumer/AUS/aboverwalten.xml",
     ]
 
 

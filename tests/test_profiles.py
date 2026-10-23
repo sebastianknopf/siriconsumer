@@ -71,13 +71,13 @@ def test_vdv_profile_builds_action_specific_urls_and_subscription_xml() -> None:
     record = SubscriptionRecord(config=_vdv_config())
 
     assert profile.resolve_endpoint(PublisherAction.SUBSCRIBE, record) == (
-        "https://publisher.example/vdv/aus/consumer/aboverwalten.xml"
+        "https://publisher.example/vdv/aus/consumer/AUS/aboverwalten.xml"
     )
     assert profile.resolve_endpoint(PublisherAction.CHECK_STATUS, record) == (
-        "https://publisher.example/vdv/aus/consumer/status.xml"
+        "https://publisher.example/vdv/aus/consumer/AUS/status.xml"
     )
     assert profile.resolve_endpoint(PublisherAction.FETCH_DELIVERY, record) == (
-        "https://publisher.example/vdv/aus/consumer/datenabrufen.xml"
+        "https://publisher.example/vdv/aus/consumer/AUS/datenabrufen.xml"
     )
 
     root = etree.fromstring(profile.build_subscription_request(record))
@@ -395,7 +395,7 @@ def test_vdv31_uses_generic_intervals_and_subscriber_endpoint() -> None:
     profile.validate_subscription(config)
     record = SubscriptionRecord(config=config)
     assert profile.resolve_endpoint(PublisherAction.FETCH_DELIVERY, record).endswith(
-        "/Client%2FWest/datenabrufen.xml"
+        "/Client%2FWest/AUS/datenabrufen.xml"
     )
     root = etree.fromstring(profile.build_subscription_request(record))
     assert root.get("Sender") == "Client/West"
@@ -410,3 +410,20 @@ def test_vdv31_rejects_unrepresentable_generic_intervals() -> None:
     )
     with pytest.raises(ValueError, match="preview_interval"):
         profile.validate_subscription(config)
+
+
+@pytest.mark.parametrize("profile_class", [GermanVdv2Profile, __import__("siriconsumer.profiles.de_vdv_31", fromlist=["GermanVdv31Profile"]).GermanVdv31Profile])
+@pytest.mark.parametrize("service,vdv_service", [
+    ("CT", "REF-ANS"), ("CM", "ANS"), ("ST", "REF-DFI"),
+    ("SM", "DFI"), ("VM", "VIS"), ("PT", "REF-AUS"), ("ET", "AUS"),
+])
+@pytest.mark.parametrize("action,filename", [
+    (PublisherAction.SUBSCRIBE, "aboverwalten.xml"),
+    (PublisherAction.TERMINATE, "aboverwalten.xml"),
+    (PublisherAction.CHECK_STATUS, "status.xml"),
+    (PublisherAction.FETCH_DELIVERY, "datenabrufen.xml"),
+])
+def test_all_vdv_services_and_actions_follow_standard_url(profile_class, service, vdv_service, action, filename):
+    config = _vdv_config(service).model_copy(update={"subscriber_ref": "Client/West"})
+    endpoint = profile_class().resolve_endpoint(action, SubscriptionRecord(config=config))
+    assert endpoint == f"https://publisher.example/vdv/aus/Client%2FWest/{vdv_service}/{filename}"
