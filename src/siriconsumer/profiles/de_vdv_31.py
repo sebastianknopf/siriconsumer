@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.parse import quote
 from typing import Any, Sequence
 
 from lxml import etree
 
 from siriconsumer.domain.enums import DeliveryMode, SubscriptionStatus
+from siriconsumer.profiles.vdv_duration import vdv_hysteresis_seconds, vdv_preview_minutes
 from siriconsumer.domain.models import SubscriptionCreate, SubscriptionRecord
 from siriconsumer.infrastructure.xml_codec import first_datetime, first_text, local_name, parse_xml
 from siriconsumer.interfaces.intf_profile import (
@@ -54,12 +56,12 @@ class GermanVdv31Profile(CommunicationProfile):
     supported_services = ("CT", "CM", "ST", "SM", "VM", "PT", "ET")
     supported_parameters = {
         "CT": ("asbId", "earliestArrivalTime", "latestArrivalTime"),
-        "CM": ("asbId", "journeyFilters", "timeFilter", "hysteresis"),
+        "CM": ("asbId", "journeyFilters", "timeFilter"),
         "ST": ("azbId", "earliestDepartureTime", "latestDepartureTime"),
-        "SM": ("azbId", "previewTime", "maxJourneys", "hysteresis", "maxTextLength", "onlyUpdates"),
+        "SM": ("azbId", "maxJourneys", "maxTextLength", "onlyUpdates"),
         "VM": ("visId",),
         "PT": ("validFrom", "validUntil", "includeGuaranteedConnections", "includeAdditionalTimeWindows", "includeFormation"),
-        "ET": ("hysteresis", "previewTime", "includeGuaranteedConnections", "includeRealTimes", "includeFormation", "onlyUpdates"),
+        "ET": ("includeGuaranteedConnections", "includeRealTimes", "includeFormation", "onlyUpdates"),
     }
     fetched_delivery_message_name = "DatenAbrufenAntwort"
 
@@ -80,17 +82,16 @@ class GermanVdv31Profile(CommunicationProfile):
         required = {
             "CT": ("asbId", "earliestArrivalTime", "latestArrivalTime"),
             "ST": ("azbId", "earliestDepartureTime", "latestDepartureTime"),
-            "SM": ("azbId", "previewTime", "hysteresis"),
+            "SM": ("azbId",),
             "VM": ("visId",),
             "PT": ("validFrom", "validUntil"),
-            "ET": ("hysteresis", "previewTime"),
+            "ET": (),
         }.get(service, ())
         for name in required:
             self._parameter(config, name, required=True)
 
         if service == "CM":
             self._parameter(config, "asbId", required=True)
-            self._parameter(config, "hysteresis", required=True)
             journeys = config.parameters.get("journeyFilters")
             time_filter = config.parameters.get("timeFilter")
             if bool(journeys) == bool(time_filter):
@@ -100,6 +101,10 @@ class GermanVdv31Profile(CommunicationProfile):
             if time_filter is not None and not isinstance(time_filter, dict):
                 raise ValueError("parameters.timeFilter must be an object")
 
+        if service in {"CM", "SM", "ET"}:
+            vdv_hysteresis_seconds(config.change_before_updates)
+        if service in {"CM", "SM", "ET"}:
+            vdv_preview_minutes(config.preview_interval)
         if config.filters.directions and not config.filters.lines:
             raise ValueError("filters.directions requires at least one filters.lines entry")
         if service in {"CT", "CM", "VM"}:
@@ -112,11 +117,11 @@ class GermanVdv31Profile(CommunicationProfile):
             self._validate_stop_filters(config)
 
     def resolve_endpoint(self, action: PublisherAction, subscription: SubscriptionRecord) -> str:
-        return f"{str(subscription.config.provider_url).rstrip('/')}/{ACTION_PATHS[action]}"
+        return f"{str(subscription.config.provider_url).rstrip('/')}/{quote(subscription.config.subscriber_ref, safe='')}/{ACTION_PATHS[action]}"
 
     def build_subscription_request(self, subscription: SubscriptionRecord) -> bytes:
         config = subscription.config
-        root = etree.Element("AboAnfrage", Sender=config.requestor_ref, Zst=self._timestamp(), XSDVersionID=VDV_XSD_VERSION)
+        root = etree.Element("AboAnfrage", Sender=config.subscriber_ref, Zst=self._timestamp(), XSDVersionID=VDV_XSD_VERSION)
         request = etree.SubElement(
             root,
             SERVICE_ELEMENTS[self._service_key(config.service)],
@@ -127,15 +132,15 @@ class GermanVdv31Profile(CommunicationProfile):
         return self._xml_bytes(root)
 
     def build_termination_request(self, subscription: SubscriptionRecord) -> bytes:
-        root = etree.Element("AboAnfrage", Sender=subscription.config.requestor_ref, Zst=self._timestamp(), XSDVersionID=VDV_XSD_VERSION)
+        root = etree.Element("AboAnfrage", Sender=subscription.config.subscriber_ref, Zst=self._timestamp(), XSDVersionID=VDV_XSD_VERSION)
         etree.SubElement(root, "AboLoeschen").text = subscription.config.subscription_ref
         return self._xml_bytes(root)
 
     def build_check_status_request(self, subscription: SubscriptionRecord) -> bytes:
-        return self._xml_bytes(etree.Element("StatusAnfrage", Sender=subscription.config.requestor_ref, Zst=self._timestamp()))
+        return self._xml_bytes(etree.Element("StatusAnfrage", Sender=subscription.config.subscriber_ref, Zst=self._timestamp()))
 
     def build_data_supply_request(self, subscription: SubscriptionRecord) -> bytes:
-        root = etree.Element("DatenAbrufenAnfrage", Sender=subscription.config.requestor_ref, Zst=self._timestamp())
+        root = etree.Element("DatenAbrufenAnfrage", Sender=subscription.config.subscriber_ref, Zst=self._timestamp())
         etree.SubElement(root, "DatensatzAlle").text = "false"
         return self._xml_bytes(root)
 
@@ -228,9 +233,9 @@ class GermanVdv31Profile(CommunicationProfile):
         elif service == "SM":
             self._text(request, "AZBID", self._parameter(config, "azbId", required=True))
             self._build_line_filters(request, config)
-            self._text(request, "Vorschauzeit", self._parameter(config, "previewTime", required=True))
+            self._text(request, "Vorschauzeit", vdv_preview_minutes(config.preview_interval))
             self._optional_text(request, "MaxAnzahlFahrten", self._parameter(config, "maxJourneys"))
-            self._text(request, "Hysterese", self._parameter(config, "hysteresis", required=True))
+            self._text(request, "Hysterese", vdv_hysteresis_seconds(config.change_before_updates))
             self._optional_text(request, "MaxTextLaenge", self._parameter(config, "maxTextLength"))
             self._optional_bool(request, "NurAktualisierung", config.parameters.get("onlyUpdates"))
         elif service == "VM":
@@ -247,8 +252,8 @@ class GermanVdv31Profile(CommunicationProfile):
             self._optional_bool(request, "MitFormation", config.parameters.get("includeFormation"))
         elif service == "ET":
             self._build_aus_filters(request, config)
-            self._text(request, "Hysterese", self._parameter(config, "hysteresis", required=True))
-            self._text(request, "Vorschauzeit", self._parameter(config, "previewTime", required=True))
+            self._text(request, "Hysterese", vdv_hysteresis_seconds(config.change_before_updates))
+            self._text(request, "Vorschauzeit", vdv_preview_minutes(config.preview_interval))
             self._optional_bool(request, "MitGesAnschluss", config.parameters.get("includeGuaranteedConnections"))
             self._optional_bool(request, "MitRealZeiten", config.parameters.get("includeRealTimes"))
             self._optional_bool(request, "MitFormation", config.parameters.get("includeFormation"))
@@ -266,7 +271,7 @@ class GermanVdv31Profile(CommunicationProfile):
             self._text(journey_id, "Betriebstag", self._dict_value(item, "operatingDay"))
             self._text(node, "HstSeqZaehler", self._dict_value(item, "stopSequenceCounter"))
             self._text(node, "AnkunftszeitASBPlan", self._dict_value(item, "plannedArrivalTime"))
-            self._text(node, "Vorschauzeit", self._dict_value(item, "previewTime"))
+            self._text(node, "Vorschauzeit", vdv_preview_minutes(config.preview_interval))
         time_filter = config.parameters.get("timeFilter")
         if isinstance(time_filter, dict):
             node = etree.SubElement(request, "ZeitFilter")
@@ -274,8 +279,8 @@ class GermanVdv31Profile(CommunicationProfile):
             self._optional_text(node, "RichtungsID", self._single_filter(config.filters.directions))
             self._text(node, "FruehesteAnkunftszeit", self._dict_value(time_filter, "earliestArrivalTime"))
             self._text(node, "SpaetesteAnkunftszeit", self._dict_value(time_filter, "latestArrivalTime"))
-            self._optional_text(node, "Vorschauzeit", self._dict_optional(time_filter, "previewTime"))
-        self._text(request, "Hysterese", self._parameter(config, "hysteresis", required=True))
+            self._optional_text(node, "Vorschauzeit", vdv_preview_minutes(config.preview_interval))
+        self._text(request, "Hysterese", vdv_hysteresis_seconds(config.change_before_updates))
 
     def _build_line_filters(self, request: etree._Element, config: SubscriptionCreate) -> None:
         for line, direction in self._line_filter_pairs(config):

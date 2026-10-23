@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 from uuid import UUID, uuid4
 
-from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr
+from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr, model_validator
 
 from siriconsumer.domain.enums import DeliveryMode, SinkType, SubscriptionStatus
 
@@ -130,7 +130,6 @@ class SubscriptionCreate(BaseModel):
         description="Service code interpreted by the selected profile.",
     )
     delivery_mode: DeliveryMode
-    requestor_ref: str
     subscriber_ref: str
     producer_ref: str | None = Field(
         default=None,

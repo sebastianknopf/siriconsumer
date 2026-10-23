@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.parse import quote
 from typing import Sequence
 
 from lxml import etree
@@ -109,7 +110,7 @@ class GermanVdv2Profile(CommunicationProfile):
         self, action: PublisherAction, subscription: SubscriptionRecord
     ) -> str:
         base = str(subscription.config.provider_url).rstrip("/")
-        return f"{base}/{ACTION_PATHS[action]}"
+        return f"{base}/{quote(subscription.config.subscriber_ref, safe='')}/{ACTION_PATHS[action]}"
 
     def build_subscription_request(self, subscription: SubscriptionRecord) -> bytes:
         config = subscription.config
@@ -120,7 +121,7 @@ class GermanVdv2Profile(CommunicationProfile):
 
         root = etree.Element(
             "AboAnfrage",
-            Sender=config.requestor_ref,
+            Sender=config.subscriber_ref,
             Zst=self._timestamp(),
         )
         request = etree.SubElement(
@@ -136,7 +137,7 @@ class GermanVdv2Profile(CommunicationProfile):
     def build_termination_request(self, subscription: SubscriptionRecord) -> bytes:
         root = etree.Element(
             "AboAnfrage",
-            Sender=subscription.config.requestor_ref,
+            Sender=subscription.config.subscriber_ref,
             Zst=self._timestamp(),
         )
         etree.SubElement(root, "AboLoeschen").text = subscription.config.subscription_ref
@@ -145,7 +146,7 @@ class GermanVdv2Profile(CommunicationProfile):
     def build_check_status_request(self, subscription: SubscriptionRecord) -> bytes:
         root = etree.Element(
             "StatusAnfrage",
-            Sender=subscription.config.requestor_ref,
+            Sender=subscription.config.subscriber_ref,
             Zst=self._timestamp(),
         )
         return self._xml_bytes(root)
@@ -153,7 +154,7 @@ class GermanVdv2Profile(CommunicationProfile):
     def build_data_supply_request(self, subscription: SubscriptionRecord) -> bytes:
         root = etree.Element(
             "DatenAbrufenAnfrage",
-            Sender=subscription.config.requestor_ref,
+            Sender=subscription.config.subscriber_ref,
             Zst=self._timestamp(),
         )
         return self._xml_bytes(root)
