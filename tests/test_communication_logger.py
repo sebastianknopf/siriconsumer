@@ -14,7 +14,7 @@ def _subscription(*, logging: bool) -> SubscriptionRecord:
             provider_url="https://producer.example/siri",
             service="VM",
             delivery_mode=DeliveryMode.DIRECT,
-            requestor_ref="consumer",
+
             subscriber_ref="consumer",
             subscription_ref="vm/test",
             logging=logging,

@@ -29,4 +29,4 @@ The default profile currently defines no keys in the generic `parameters` object
 "parameters": {}
 ```
 
-Other generic subscription fields such as `requestor_ref`, `subscriber_ref`, `subscription_ref`, filters, heartbeat configuration, headers, delivery mode, and sink configuration retain their existing SIRI semantics.
+Other generic subscription fields such as `subscriber_ref`, `subscription_ref`, filters, heartbeat configuration, headers, delivery mode, and sink configuration retain their existing SIRI semantics.

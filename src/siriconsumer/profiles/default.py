@@ -62,7 +62,7 @@ class DefaultSiriProfile(CommunicationProfile):
         root = etree.Element(f"{{{SIRI_NS}}}Siri", nsmap=NSMAP)
         request = etree.SubElement(root, f"{{{SIRI_NS}}}SubscriptionRequest")
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestTimestamp").text = self._timestamp()
-        etree.SubElement(request, f"{{{SIRI_NS}}}RequestorRef").text = config.requestor_ref
+        etree.SubElement(request, f"{{{SIRI_NS}}}RequestorRef").text = config.subscriber_ref
         etree.SubElement(request, f"{{{SIRI_NS}}}SubscriberRef").text = config.subscriber_ref
         if config.consumer_address is not None:
             etree.SubElement(request, f"{{{SIRI_NS}}}ConsumerAddress").text = str(
@@ -126,7 +126,7 @@ class DefaultSiriProfile(CommunicationProfile):
         request = etree.SubElement(root, f"{{{SIRI_NS}}}TerminateSubscriptionRequest")
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestTimestamp").text = self._timestamp()
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestorRef").text = (
-            subscription.config.requestor_ref
+            subscription.config.subscriber_ref
         )
         etree.SubElement(request, f"{{{SIRI_NS}}}SubscriberRef").text = (
             subscription.config.subscriber_ref
@@ -141,7 +141,7 @@ class DefaultSiriProfile(CommunicationProfile):
         request = etree.SubElement(root, f"{{{SIRI_NS}}}CheckStatusRequest")
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestTimestamp").text = self._timestamp()
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestorRef").text = (
-            subscription.config.requestor_ref
+            subscription.config.subscriber_ref
         )
         return xml_bytes(root)
 
@@ -150,7 +150,7 @@ class DefaultSiriProfile(CommunicationProfile):
         request = etree.SubElement(root, f"{{{SIRI_NS}}}DataSupplyRequest")
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestTimestamp").text = self._timestamp()
         etree.SubElement(request, f"{{{SIRI_NS}}}RequestorRef").text = (
-            subscription.config.requestor_ref
+            subscription.config.subscriber_ref
         )
         etree.SubElement(request, f"{{{SIRI_NS}}}SubscriberRef").text = (
             subscription.config.subscriber_ref
@@ -175,6 +175,7 @@ class DefaultSiriProfile(CommunicationProfile):
         healthy = status_text is None or status_text.lower() in {"true", "1"}
         return ProviderStatus(
             healthy=healthy,
+            data_ready=(first_text(root, "DataReady") or "").strip().lower() in {"true", "1"},
             service_started_time=first_datetime(root, "ServiceStartedTime"),
         )
 

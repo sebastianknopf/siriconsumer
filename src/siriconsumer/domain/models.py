@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 from uuid import UUID, uuid4
 
-from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr
+from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr, TypeAdapter, field_validator, model_validator
 
 from siriconsumer.domain.enums import DeliveryMode, SinkType, SubscriptionStatus
 
@@ -48,7 +48,28 @@ class HeartbeatConfig(BaseModel):
         ),
     )
     timeout_seconds: int = Field(default=180, ge=1)
-    check_status_enabled: bool = True
+
+
+class StatusConfig(BaseModel):
+    enabled: bool = True
+    interval: str = Field(default="PT30S", min_length=1)
+
+    @field_validator("interval")
+    @classmethod
+    def validate_interval(cls, value: str) -> str:
+        if not value.startswith("P"):
+            raise ValueError("status.interval must be an ISO-8601 duration")
+        try:
+            duration = TypeAdapter(timedelta).validate_python(value)
+        except ValueError as exc:
+            raise ValueError("status.interval must be an ISO-8601 duration") from exc
+        if duration.total_seconds() < 1:
+            raise ValueError("status.interval must be at least one second")
+        return value
+
+    @property
+    def interval_seconds(self) -> float:
+        return TypeAdapter(timedelta).validate_python(self.interval).total_seconds()
 
 
 class DirectorySinkConfig(BaseModel):
@@ -130,7 +151,6 @@ class SubscriptionCreate(BaseModel):
         description="Service code interpreted by the selected profile.",
     )
     delivery_mode: DeliveryMode
-    requestor_ref: str
     subscriber_ref: str
     producer_ref: str | None = Field(
         default=None,
@@ -162,6 +182,7 @@ class SubscriptionCreate(BaseModel):
     filters: SubscriptionFilters = Field(default_factory=SubscriptionFilters)
     subscription_policy: SubscriptionPolicy = Field(default_factory=SubscriptionPolicy)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
+    status: StatusConfig = Field(default_factory=StatusConfig)
     sink: SinkConfig
 
 

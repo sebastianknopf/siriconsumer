@@ -19,7 +19,7 @@ def _vdv_config(service: str = "ET") -> SubscriptionCreate:
             "version": "2",
             "service": service,
             "delivery_mode": "fetched",
-            "requestor_ref": "consumer-control-centre",
+
             "subscriber_ref": "consumer",
             "producer_ref": "producer-control-centre",
             "subscription_ref": "abo-17",
@@ -44,7 +44,7 @@ def test_subscription_profile_defaults_to_default() -> None:
             "provider_url": "https://publisher.example/siri",
             "service": "VM",
             "delivery_mode": "direct",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "consumer",
             "producer_ref": "producer-control-centre",
             "subscription_ref": "sub-1",
@@ -71,18 +71,18 @@ def test_vdv_profile_builds_action_specific_urls_and_subscription_xml() -> None:
     record = SubscriptionRecord(config=_vdv_config())
 
     assert profile.resolve_endpoint(PublisherAction.SUBSCRIBE, record) == (
-        "https://publisher.example/vdv/aus/aboverwalten.xml"
+        "https://publisher.example/vdv/aus/consumer/AUS/aboverwalten.xml"
     )
     assert profile.resolve_endpoint(PublisherAction.CHECK_STATUS, record) == (
-        "https://publisher.example/vdv/aus/status.xml"
+        "https://publisher.example/vdv/aus/consumer/AUS/status.xml"
     )
     assert profile.resolve_endpoint(PublisherAction.FETCH_DELIVERY, record) == (
-        "https://publisher.example/vdv/aus/datenabrufen.xml"
+        "https://publisher.example/vdv/aus/consumer/AUS/datenabrufen.xml"
     )
 
     root = etree.fromstring(profile.build_subscription_request(record))
     assert root.tag == "AboAnfrage"
-    assert root.get("Sender") == "consumer-control-centre"
+    assert root.get("Sender") == "consumer"
     abo = root.find("AboAUS")
     assert abo is not None
     assert abo.get("AboID") == "abo-17"
@@ -174,10 +174,10 @@ def test_vdv_profile_rejects_xml_structure_names_and_and_service() -> None:
             profile.validate_subscription(_vdv_config(service))
 
 
-def test_vdv_profile_uses_requestor_ref_as_sender() -> None:
+def test_vdv_profile_uses_subscriber_ref_as_sender() -> None:
     config = _vdv_config().model_copy(
         update={
-            "requestor_ref": "vdv-consumer",
+
             "subscriber_ref": "subscriber-ref-is-not-vdv-sender",
         }
     )
@@ -191,7 +191,7 @@ def test_vdv_profile_uses_requestor_ref_as_sender() -> None:
         profile.build_data_supply_request(record),
     ):
         root = etree.fromstring(payload)
-        assert root.get("Sender") == "vdv-consumer"
+        assert root.get("Sender") == "subscriber-ref-is-not-vdv-sender"
 
 
 @pytest.mark.parametrize(
@@ -287,7 +287,7 @@ def _vdv31_config(service: str, *, parameters: dict | None = None, filters: dict
     return SubscriptionCreate.model_validate({
         "provider_url": "https://publisher.example/vdv31",
         "profile": "de-vdv", "version": "3.1", "service": service,
-        "delivery_mode": "fetched", "requestor_ref": "consumer", "subscriber_ref": "consumer",
+        "delivery_mode": "fetched", "subscriber_ref": "consumer", "subscriber_ref": "consumer",
         "producer_ref": "producer", "subscription_ref": f"abo-{service.lower()}",
         "initial_termination_time": "2026-09-30T04:00:00+02:00",
         "parameters": parameters if parameters is not None else defaults[service],
@@ -359,7 +359,7 @@ def test_vdv31_ans_builds_journey_filter() -> None:
     assert abo.findtext("FahrtFilter/FahrtID/FahrtBezeichner") == "de:vbb:journey:7748"
     assert abo.findtext("FahrtFilter/FahrtID/Betriebstag") == "2026-09-29"
     assert abo.findtext("FahrtFilter/HstSeqZaehler") == "1"
-    assert abo.findtext("Hysterese") == "120"
+    assert abo.findtext("Hysterese") == "30"
 
 
 def test_vdv31_dfi_and_vis_filters_are_service_specific() -> None:
@@ -369,8 +369,8 @@ def test_vdv31_dfi_and_vis_filters_are_service_specific() -> None:
     assert sm_abo is not None
     assert sm_abo.findtext("LinienFilter/LinienID") == "L1"
     assert sm_abo.findtext("LinienFilter/RichtungsID") == "A"
-    assert sm_abo.findtext("Vorschauzeit") == "30"
-    assert sm_abo.findtext("Hysterese") == "60"
+    assert sm_abo.findtext("Vorschauzeit") == "120"
+    assert sm_abo.findtext("Hysterese") == "30"
 
     vm = _vdv31_config("VM", parameters={"visId": "VIS-1"}, filters={"lines": ["L9"], "directions": ["B"]})
     vm_abo = etree.fromstring(profile.build_subscription_request(SubscriptionRecord(config=vm))).find("AboVIS")
@@ -385,3 +385,68 @@ def test_vdv31_rejects_and() -> None:
     with pytest.raises(ValueError, match="CT, CM, ST, SM, VM, PT, and ET"):
         profile.validate_subscription(config)
 
+
+
+def test_vdv31_uses_generic_intervals_and_subscriber_endpoint() -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config("ET", parameters={}).model_copy(
+        update={"subscriber_ref": "Client/West", "change_before_updates": "PT1M30S", "preview_interval": "PT1H30M"}
+    )
+    profile.validate_subscription(config)
+    record = SubscriptionRecord(config=config)
+    assert profile.resolve_endpoint(PublisherAction.FETCH_DELIVERY, record).endswith(
+        "/Client%2FWest/AUS/datenabrufen.xml"
+    )
+    root = etree.fromstring(profile.build_subscription_request(record))
+    assert root.get("Sender") == "Client/West"
+    assert root.findtext("AboAUS/Hysterese") == "90"
+    assert root.findtext("AboAUS/Vorschauzeit") == "90"
+
+
+def test_vdv31_rejects_unrepresentable_generic_intervals() -> None:
+    profile = GermanVdv31Profile()
+    config = _vdv31_config("ET", parameters={}).model_copy(
+        update={"preview_interval": "PT30S"}
+    )
+    with pytest.raises(ValueError, match="preview_interval"):
+        profile.validate_subscription(config)
+
+
+@pytest.mark.parametrize("profile_class", [GermanVdv2Profile, __import__("siriconsumer.profiles.de_vdv_31", fromlist=["GermanVdv31Profile"]).GermanVdv31Profile])
+@pytest.mark.parametrize("service,vdv_service", [
+    ("CT", "REF-ANS"), ("CM", "ANS"), ("ST", "REF-DFI"),
+    ("SM", "DFI"), ("VM", "VIS"), ("PT", "REF-AUS"), ("ET", "AUS"),
+])
+@pytest.mark.parametrize("action,filename", [
+    (PublisherAction.SUBSCRIBE, "aboverwalten.xml"),
+    (PublisherAction.TERMINATE, "aboverwalten.xml"),
+    (PublisherAction.CHECK_STATUS, "status.xml"),
+    (PublisherAction.FETCH_DELIVERY, "datenabrufen.xml"),
+])
+def test_all_vdv_services_and_actions_follow_standard_url(profile_class, service, vdv_service, action, filename):
+    config = _vdv_config(service).model_copy(update={"subscriber_ref": "Client/West"})
+    endpoint = profile_class().resolve_endpoint(action, SubscriptionRecord(config=config))
+    assert endpoint == f"https://publisher.example/vdv/aus/Client%2FWest/{vdv_service}/{filename}"
+
+
+
+def test_status_data_ready_flags_for_all_profiles() -> None:
+    from siriconsumer.profiles.default import DefaultSiriProfile
+    from siriconsumer.profiles.de_vdv_2 import GermanVdv2Profile
+    from siriconsumer.profiles.de_vdv_31 import GermanVdv31Profile
+
+    for profile in (GermanVdv2Profile(), GermanVdv31Profile()):
+        assert profile.parse_provider_status(
+            b'<StatusAntwort><Status Ergebnis="ok"/><DatenBereit>true</DatenBereit></StatusAntwort>'
+        ).data_ready
+        assert not profile.parse_provider_status(
+            b'<StatusAntwort><Status Ergebnis="ok"/><DatenBereit>false</DatenBereit></StatusAntwort>'
+        ).data_ready
+
+    siri = DefaultSiriProfile()
+    assert siri.parse_provider_status(
+        b'<Siri><CheckStatusResponse><Status>true</Status><DataReady>true</DataReady></CheckStatusResponse></Siri>'
+    ).data_ready
+    assert not siri.parse_provider_status(
+        b'<Siri><CheckStatusResponse><Status>true</Status></CheckStatusResponse></Siri>'
+    ).data_ready

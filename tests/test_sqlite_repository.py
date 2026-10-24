@@ -18,7 +18,7 @@ def _mqtt_config(subscription_ref: str = "sub-secret") -> SubscriptionCreate:
             "provider_url": "https://publisher.example/siri",
             "service": "VM",
             "delivery_mode": "direct",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "consumer",
             "subscription_ref": subscription_ref,
             "sink": {
@@ -158,7 +158,7 @@ def _vdv_config(subscription_ref: str, version: str = "3.1") -> SubscriptionCrea
             "version": version,
             "service": "ET",
             "delivery_mode": "fetched",
-            "requestor_ref": "consumer",
+
             "subscriber_ref": "subscriber-a",
             "producer_ref": "producer-a",
             "subscription_ref": subscription_ref,

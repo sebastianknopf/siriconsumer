@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 
 from siriconsumer.config import Settings
@@ -10,6 +11,7 @@ from siriconsumer.domain.exceptions import MtlsCertificateFileError
 from siriconsumer.interfaces.intf_siri_client import SiriClient
 from siriconsumer.interfaces.intf_subscription_repository import SubscriptionRepository
 from siriconsumer.services.subscription_manager import SubscriptionManager
+from siriconsumer.services.fetched_delivery_service import FetchedDeliveryService
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +23,21 @@ class ProviderMonitor:
         repository: SubscriptionRepository,
         siri_client: SiriClient,
         subscription_manager: SubscriptionManager,
+        fetched_delivery_service: FetchedDeliveryService | None = None,
     ) -> None:
         self._settings = settings
         self._repository = repository
         self._siri_client = siri_client
         self._subscription_manager = subscription_manager
+        self._fetched_delivery_service = fetched_delivery_service
         self._task: asyncio.Task[None] | None = None
         self._provider_recovery_locks: dict[str, asyncio.Lock] = {}
+        self._next_status_check: dict[str, float] = {}
+        self._poll_lock = asyncio.Lock()
 
     async def start(self) -> None:
+        if self._task is not None and not self._task.done():
+            return
         self._task = asyncio.create_task(self._run(), name="provider-monitor")
 
     async def stop(self) -> None:
@@ -77,11 +85,20 @@ class ProviderMonitor:
             except Exception:
                 logger.exception("Provider monitor iteration failed")
 
-            await asyncio.sleep(self._settings.provider_check_interval_seconds)
+            await asyncio.sleep(1)
 
     async def _check_all_providers(self) -> None:
+        # Serialize checks even if the monitor is invoked from multiple tasks.
+        async with self._poll_lock:
+            await self._check_all_providers_locked()
+
+    async def _check_all_providers_locked(self) -> None:
         subscriptions = await self._repository.list_all()
         providers: dict[str, list] = {}
+        now = time.monotonic()
+        active_refs = {record.config.subscription_ref for record in subscriptions}
+        for ref in self._next_status_check.keys() - active_refs:
+            del self._next_status_check[ref]
         for record in subscriptions:
             providers.setdefault(str(record.config.provider_url), []).append(record)
 
@@ -89,8 +106,16 @@ class ProviderMonitor:
         for provider_url, records in providers.items():
             restart_detected = False
             for record in records:
-                if not record.config.heartbeat.check_status_enabled:
+                ref = record.config.subscription_ref
+                if not record.config.status.enabled:
+                    self._next_status_check.pop(ref, None)
                     continue
+                
+                if now < self._next_status_check.get(ref, 0):
+                    continue
+                
+                # Schedule the next attempt even if this request fails.
+                self._next_status_check[ref] = time.monotonic() + record.config.status.interval_seconds
                 try:
                     status = await self._siri_client.check_status(record)
                 except MtlsCertificateFileError as exc:
@@ -112,6 +137,9 @@ class ProviderMonitor:
                         exc_info=True,
                     )
                     continue
+
+                if status.healthy and status.data_ready and self._fetched_delivery_service is not None:
+                    await self._fetched_delivery_service.schedule(record.config.subscription_ref)
 
                 if status.service_started_time is not None:
                     if (

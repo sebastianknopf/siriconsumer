@@ -10,6 +10,7 @@ from siriconsumer.domain.models import SubscriptionRecord
 @dataclass(slots=True)
 class ProviderStatus:
     healthy: bool
+    data_ready: bool = False
     service_started_time: datetime | None = None
 
 
