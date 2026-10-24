@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from pydantic import Field
@@ -11,7 +12,20 @@ class Settings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = 8080
-    state_dir: Path = Path("/app/state")
+    data_dir: Path = Path("/data")
+
+    @property
+    def state_dir(self) -> Path:
+        return self.data_dir / "state"
+
+    @property
+    def log_path(self) -> Path:
+        return self.data_dir / "logs"
+
+    @property
+    def output_path(self) -> Path:
+        return self.data_dir / "output"
+    
     log_level: str = "INFO"
     log_retention_hours: float = Field(default=24.0, ge=0)
     log_retention_check_interval_seconds: float = Field(default=3600.0, gt=0)
@@ -31,4 +45,8 @@ class Settings(BaseSettings):
 
     @property
     def spool_path(self) -> Path:
-        return self.state_dir / "spool"
+        return self.data_dir / "spool"
+
+
+def communication_log_root() -> Path:
+    return Path(os.environ.get("SIRI_DATA_DIR", "/data")) / "logs"

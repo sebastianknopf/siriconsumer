@@ -5,9 +5,11 @@ import multiprocessing
 import time
 from pathlib import Path
 
+from siriconsumer.config import communication_log_root
+
 logger = logging.getLogger(__name__)
 
-COMMUNICATION_LOG_ROOT = Path("/var/log/siri")
+COMMUNICATION_LOG_ROOT = communication_log_root()
 
 
 def cleanup_communication_logs(

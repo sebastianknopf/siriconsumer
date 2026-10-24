@@ -13,10 +13,10 @@ The published Docker image is available as `sebastianknopf/siriconsumer`. Use `l
 Create the persistent host directories first:
 
 ```bash
-mkdir -p state output log/siri
+mkdir -p data
 ```
 
-The container runs as UID/GID `10001`. If the directories are not writable by that user on the host, adjust their ownership before starting the container.
+The container uses the image default user (root). All persistent application files share one host mount.
 
 ### Run the Published Docker Image
 
@@ -27,9 +27,7 @@ docker pull sebastianknopf/siriconsumer:latest
 
 docker run --name siriconsumer \
   -p 8080:8080 \
-  -v "$(pwd)/state:/app/state" \
-  -v "$(pwd)/output:/app/output" \
-  -v "$(pwd)/log/siri:/var/log/siri" \
+  -v "$(pwd)/data:/data" \
   --restart unless-stopped \
   sebastianknopf/siriconsumer:latest
 ```
@@ -58,7 +56,7 @@ Clone the repository and build the image from the local source tree:
 ```bash
 git clone https://github.com/sebastianknopf/siriconsumer.git
 cd siriconsumer
-mkdir -p state output log/siri
+mkdir -p data
 
 docker build -t siriconsumer:local .
 ```
@@ -66,7 +64,7 @@ docker build -t siriconsumer:local .
 Run the locally built image:
 
 ```bash
-docker run --name siriconsumer -p 8080:8080 -v "$(pwd)/state:/app/state" -v "$(pwd)/output:/app/output" -v "$(pwd)/log/siri:/var/log/siri" --restart unless-stopped siriconsumer:local
+docker run --name siriconsumer -p 8080:8080 -v "$(pwd)/data:/data" --restart unless-stopped siriconsumer:local
 ```
 
 Or build and start the local checkout with the standard Compose file:
@@ -75,7 +73,7 @@ Or build and start the local checkout with the standard Compose file:
 docker compose up --build -d
 ```
 
-In both variants, `/app/state` contains the SQLite subscription state and durable spool, `/app/output` is available to directory sinks, and `/var/log/siri` contains optional per-subscription communication logs. The Compose files mount these paths to `./state`, `./output`, and `./log/siri`.
+In both variants, one mount (`./data:/data`) persists the SQLite database (`/data/state/siri.db`), spool (`/data/spool`), optional communication logs (`/data/logs`), and directory-sink output (`/data/output`). Set `SIRI_DATA_DIR` to change the container data root.
 
 After startup, open the Swagger UI at:
 
@@ -87,7 +85,7 @@ The runtime status overview is available at `http://localhost:8080/status`. It s
 
 
 
-Communication XML logging is disabled by default and can be enabled per subscription with `"logging": true`. Logged XML is written below `/var/log/siri/{subscription_ref}/`. The files deliberately survive subscription deletion and are never cleaned up automatically by the application. See [`docs/communication-logging.md`](docs/communication-logging.md).
+Communication XML logging is disabled by default and can be enabled per subscription with `"logging": true`. Logged XML is written below `/data/logs/{subscription_ref}/`. The files deliberately survive subscription deletion and are never cleaned up automatically by the application. See [`docs/communication-logging.md`](docs/communication-logging.md).
 
 ## Docker Image Publishing
 
@@ -150,7 +148,7 @@ src/siriconsumer/version.py
   "incremental_updates": true,
   "sink": {
     "type": "directory",
-    "path": "/app/output"
+    "path": "/data/output"
   }
 }
 ```
@@ -161,7 +159,7 @@ See a full example for the subscription API in [docs/subscriptions.md][docs/subs
 
 `subscription_ref` is the single subscription identifier throughout the application and must be unique in the local database. Creating a second subscription with the same ref returns HTTP 400.
 
-Subscription configuration is stored in `/app/state/siri.db`. Pending messages are stored under `/app/state/spool`. Mount `/app/state` if subscriptions and pending deliveries must survive container replacement.
+Subscription configuration is stored in `/data/state/siri.db`. Pending messages are stored under `/data/spool`. Mount `/data` if subscriptions and pending deliveries must survive container replacement.
 
 At startup, each persisted subscription is recovered using the same policy used after a detected publisher restart:
 

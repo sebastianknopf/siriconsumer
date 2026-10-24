@@ -19,21 +19,21 @@ Protocol parsing that is required for the consumer's normal message handling is 
 The communication log directory inside the container is fixed to:
 
 ```text
-/var/log/siri
+/data/logs
 ```
 
-The path is intentionally not configurable through environment variables or application settings. Deployments can choose the host-side storage location only through the container volume mount.
+The log directory is derived from `SIRI_DATA_DIR` (default `/data`). All persistent files share the same volume mount.
 
 The supplied Compose configuration mounts the host directory:
 
 ```text
-./log/siri:/var/log/siri
+./data:/data
 ```
 
 Each subscription gets its own directory and each creation of that subscription reference gets a generation subdirectory. A subscription reference is URL-escaped before it is used as a directory name, preventing path separators in an identifier from escaping the log root.
 
 ```text
-/var/log/siri/{subscription_ref}/{generation}/
+/data/logs/{subscription_ref}/{generation}/
 ```
 
 ## Filenames and Direction
@@ -80,7 +80,7 @@ SIRI_LOG_MAX_SIZE_BYTES=0
 Logs are stored by subscription generation:
 
 ```text
-/var/log/siri/{subscription_ref}/{generation}/
+/data/logs/{subscription_ref}/{generation}/
 ```
 
 Recreating a previously deleted `subscription_ref` therefore starts a new generation instead of mixing new communication with an older subscription instance. Pre-generation flat log files remain readable as legacy archives.

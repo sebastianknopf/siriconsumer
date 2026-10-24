@@ -68,4 +68,4 @@ Workers asynchronously deliver spooled payloads to a directory, HTTP endpoint, S
 
 ## Persistence
 
-SQLite stores only subscription and provider state. The spool stores payload bytes separately. Mounting `/app/state` makes both survive container replacement.
+SQLite stores only subscription and provider state. The spool stores payload bytes separately. Mounting `/data` makes the SQLite database, spool, logs, and directory-sink output survive container replacement.

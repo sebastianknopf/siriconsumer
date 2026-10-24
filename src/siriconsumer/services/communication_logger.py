@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from lxml import etree
 
+from siriconsumer.config import communication_log_root
 from siriconsumer.domain.models import SubscriptionRecord
 from siriconsumer.interfaces.intf_communication_logger import (
     CommunicationDirection,
@@ -16,7 +17,7 @@ from siriconsumer.interfaces.intf_communication_logger import (
 
 logger = logging.getLogger(__name__)
 
-COMMUNICATION_LOG_ROOT = Path("/var/log/siri")
+COMMUNICATION_LOG_ROOT = communication_log_root()
 
 
 class FileCommunicationLogger:
