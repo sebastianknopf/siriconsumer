@@ -18,7 +18,7 @@ COPY . .
 RUN git config --global --add safe.directory /app \
     && python -m pip install --no-cache-dir .
 
-RUN mkdir -p /app/state /app/output /var/log/siri
+RUN mkdir -p /data/state /data/spool /data/logs /data/output
 
 # Run as the image's default user to support ordinary Linux bind mounts.
 EXPOSE 8080

@@ -6,13 +6,15 @@ import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
+
+from siriconsumer.config import communication_log_root
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.background import BackgroundTasks
 from fastapi.responses import FileResponse, Response
 
-COMMUNICATION_LOG_ROOT = Path("/var/log/siri")
+COMMUNICATION_LOG_ROOT = communication_log_root()
 
 router = APIRouter(
     prefix="/api/subscriptions/{subscription_ref}/logs",

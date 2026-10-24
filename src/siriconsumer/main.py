@@ -39,7 +39,8 @@ configure_logging(settings.log_level)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings.state_dir.mkdir(parents=True, exist_ok=True)
+    for directory in (settings.state_dir, settings.spool_path, settings.log_path, settings.output_path):
+        directory.mkdir(parents=True, exist_ok=True)
 
     repository = SqliteSubscriptionRepository(str(settings.database_path))
     communication_logger = FileCommunicationLogger()
@@ -82,6 +83,7 @@ async def lifespan(app: FastAPI):
 
     sink_workers = SinkWorkerPool(settings, spool, repository, sink_factory)
     log_retention = LogRetentionProcess(
+        root=settings.log_path,
         retention_hours=settings.log_retention_hours,
         check_interval_seconds=settings.log_retention_check_interval_seconds,
         max_size_bytes=settings.log_max_size_bytes,
